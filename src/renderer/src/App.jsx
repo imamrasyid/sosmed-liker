@@ -95,8 +95,9 @@ function App() {
     runUpdateCheck(true)
 
     // Listen to real-time logs from Playwright main process
+    let unsubscribe;
     if (window.api && window.api.onAutomationLog) {
-      window.api.onAutomationLog((message) => {
+      unsubscribe = window.api.onAutomationLog((message) => {
         // Parse log type
         let type = 'SYSTEM'
         let cleanMsg = message
@@ -128,6 +129,10 @@ function App() {
           loadHistory()
         }
       })
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe()
     }
   }, [])
 

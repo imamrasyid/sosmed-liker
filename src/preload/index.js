@@ -22,7 +22,11 @@ const api = {
   deleteCookie: (platform) => ipcRenderer.invoke('delete-cookie', platform),
   checkCookiesStatus: () => ipcRenderer.invoke('check-cookies-status'),
   onAutomationLog: (callback) => {
-    ipcRenderer.on('automation-log', (_event, value) => callback(value))
+    const subscription = (_event, value) => callback(value)
+    ipcRenderer.on('automation-log', subscription)
+    return () => {
+      ipcRenderer.off('automation-log', subscription)
+    }
   }
 }
 
