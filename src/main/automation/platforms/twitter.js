@@ -103,7 +103,7 @@ export async function processTwitter(context, db, targetUrl, onLog, options = {}
       onLog(`[Stage 2] [${i + 1}/${toLikeList.length}] Membuka detail tweet: ${post.url}`)
       
       try {
-        await page.goto(post.url, { waitUntil: 'domcontentloaded', timeout: 30000 })
+        await page.goto(post.url, { waitUntil: 'domcontentloaded', timeout: 60000 })
         await randomDelay(3000, 5000)
 
         // Tunggu tombol like/unlike

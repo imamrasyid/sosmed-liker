@@ -1,7 +1,7 @@
 {
   "author": "EyeTracker",
   "name": "sosmed-liker",
-  "version": "1.0.1-B20260520",
+  "version": "1.0.2-B20260521",
   "description": "Aplikasi Desktop Otomatisasi Sosmed Liker",
   "main": "./out/main/index.js",
   "scripts": {

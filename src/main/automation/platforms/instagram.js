@@ -17,8 +17,11 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
   
   try {
     onLog(`[Stage 1] Mengunjungi profil Instagram: ${targetUrl}`)
-    await page.goto(targetUrl, { waitUntil: 'networkidle' })
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 })
     await randomDelay(3000, 5000)
+
+    onLog('Menunggu timeline grid postingan Instagram dimuat...')
+    await page.waitForSelector('a[href*="/p/"], a[href*="/reel/"]', { timeout: 30000 }).catch(() => {})
 
     onLog('Melakukan scroll awal untuk memuat grid postingan...')
     await page.evaluate(() => window.scrollBy(0, 400))
@@ -98,7 +101,7 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
       onLog(`[Stage 2] [${i + 1}/${toLikeList.length}] Membuka detail postingan: ${post.url}`)
       
       try {
-        await page.goto(post.url, { waitUntil: 'networkidle', timeout: 30000 })
+        await page.goto(post.url, { waitUntil: 'domcontentloaded', timeout: 60000 })
         await randomDelay(3000, 5000)
 
         // Tunggu hingga tombol like/unlike utama dimuat

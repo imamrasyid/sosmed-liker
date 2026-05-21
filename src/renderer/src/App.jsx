@@ -1379,6 +1379,15 @@ function App() {
                 <p className="text-slate-400 text-sm mt-1">Konfigurasi dinamis interaksi bot untuk meminimalkan risiko pembatasan (ban).</p>
               </div>
 
+              {/* Informative tips box */}
+              <div className="bg-slate-900/20 border border-slate-800 rounded-2xl p-5 flex gap-3 text-xs leading-relaxed text-slate-400 shadow-sm">
+                <span className="text-md">💡</span>
+                <div>
+                  <h4 className="font-bold text-slate-300 uppercase tracking-wider text-[10px] mb-1">Tips Keamanan Akun</h4>
+                  Untuk menghindari deteksi bot, sangat disarankan menggunakan jeda acak minimal <strong>3-6 detik</strong> dan membatasi pemindaian hingga <strong>20 postingan</strong> per sesi. Gunakan User Agent Chrome/Windows untuk kompatibilitas optimal.
+                </div>
+              </div>
+
               {/* Slider Controls Wrapper */}
               <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl p-6 border border-slate-800/80 flex flex-col gap-8 shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/2 rounded-full blur-2xl pointer-events-none"></div>
@@ -1478,6 +1487,11 @@ function App() {
                           const val = parseInt(e.target.value, 10)
                           setLimit(val)
                           handleSaveConfig('limit', val)
+                          // Auto-cap consecutive skips limit if it exceeds the new post limit
+                          if (consecutiveSkipsLimit > val) {
+                            setConsecutiveSkipsLimit(val)
+                            handleSaveConfig('consecutive_skips_limit', val)
+                          }
                         }}
                         className="w-full accent-indigo-500 bg-slate-950 h-1.5 rounded-lg cursor-pointer"
                       />
@@ -1495,7 +1509,7 @@ function App() {
                       <input 
                         type="range"
                         min="3"
-                        max="10"
+                        max={limit}
                         step="1"
                         value={consecutiveSkipsLimit}
                         onChange={(e) => {
@@ -1622,15 +1636,6 @@ function App() {
                       ))}
                     </div>
                   </div>
-                </div>
-              </div>
-
-              {/* Informative tips box */}
-              <div className="bg-slate-900/20 border border-slate-800 rounded-2xl p-5 flex gap-3 text-xs leading-relaxed text-slate-400 shadow-sm">
-                <span className="text-md">💡</span>
-                <div>
-                  <h4 className="font-bold text-slate-300 uppercase tracking-wider text-[10px] mb-1">Tips Keamanan Akun</h4>
-                  Untuk menghindari deteksi bot, sangat disarankan menggunakan jeda acak minimal <strong>3-6 detik</strong> dan membatasi pemindaian hingga <strong>20 postingan</strong> per sesi. Gunakan User Agent Chrome/Windows untuk kompatibilitas optimal.
                 </div>
               </div>
             </div>
