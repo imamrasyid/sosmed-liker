@@ -15,7 +15,7 @@ export function initDb() {
     const dbPath = getDbPath()
     const db = new sqlite3.Database(dbPath, (err) => {
       if (err) return reject(err)
-      
+
       db.serialize(() => {
         db.run(`
           CREATE TABLE IF NOT EXISTS liked_posts (
@@ -26,7 +26,12 @@ export function initDb() {
             liked_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `)
-        
+
+        // Create indexes for better query performance
+        db.run(`CREATE INDEX IF NOT EXISTS idx_liked_posts_platform ON liked_posts(platform)`)
+        db.run(`CREATE INDEX IF NOT EXISTS idx_liked_posts_target_profile ON liked_posts(target_profile)`)
+        db.run(`CREATE INDEX IF NOT EXISTS idx_liked_posts_liked_at ON liked_posts(liked_at)`)
+
         db.run(`
           CREATE TABLE IF NOT EXISTS config (
             key TEXT PRIMARY KEY,

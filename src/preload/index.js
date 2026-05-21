@@ -21,6 +21,7 @@ const api = {
   saveCookie: (platform, content) => ipcRenderer.invoke('save-cookie', platform, content),
   deleteCookie: (platform) => ipcRenderer.invoke('delete-cookie', platform),
   checkCookiesStatus: () => ipcRenderer.invoke('check-cookies-status'),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   onAutomationLog: (callback) => {
     const subscription = (_event, value) => callback(value)
     ipcRenderer.on('automation-log', subscription)

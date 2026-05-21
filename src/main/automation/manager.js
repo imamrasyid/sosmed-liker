@@ -1,7 +1,6 @@
 import { launchBrowserWithCookies } from './browser.js'
 import { processInstagram } from './platforms/instagram.js'
 import { processTwitter } from './platforms/twitter.js'
-// import { processFacebook } from './platforms/facebook.js'
 import { processThreads } from './platforms/threads.js'
 import { join } from 'path'
 import { app } from 'electron'
@@ -78,8 +77,6 @@ export class AutomationManager {
           scrollStep,
           maxScrollAttempts
         })
-      } else if (lowerUrl.includes('facebook.com')) {
-        this.log('[ERROR] Platform Facebook saat ini dinonaktifkan (Maintenance).')
       } else if (lowerUrl.includes('threads.net') || lowerUrl.includes('threads.com')) {
         if (lowerUrl.includes('threads.com')) {
           normalizedUrl = targetUrl.replace(/threads\.com/i, 'threads.net')
@@ -94,7 +91,7 @@ export class AutomationManager {
           maxScrollAttempts
         })
       } else {
-        this.log('[ERROR] Platform sosial media tidak dikenali. Pastikan URL target valid untuk Instagram, Twitter / X, Facebook, atau Threads.')
+        this.log('[ERROR] Platform sosial media tidak dikenali. Pastikan URL target valid untuk Instagram, Twitter / X, atau Threads.')
       }
 
     } catch (error) {

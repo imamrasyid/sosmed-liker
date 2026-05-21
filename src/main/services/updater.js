@@ -1,6 +1,6 @@
 import { app, net } from 'electron'
 
-const GITHUB_REPO = 'EyeTracker/sosmed-liker'
+const GITHUB_REPO = 'imamrasyid/sosmed-liker'
 
 function isNewerVersion(current, latest) {
   const cleanCurrent = current.replace(/^[vV]/, '')
@@ -37,7 +37,8 @@ function isNewerVersion(current, latest) {
 export async function checkForUpdates() {
   return new Promise((resolve) => {
     const currentVersion = app.getVersion()
-    
+    const TIMEOUT_MS = 10000 // 10 second timeout
+
     const request = net.request({
       method: 'GET',
       protocol: 'https:',
@@ -49,7 +50,18 @@ export async function checkForUpdates() {
       }
     })
 
+    // Set timeout
+    const timeout = setTimeout(() => {
+      request.abort()
+      resolve({
+        updateAvailable: false,
+        currentVersion,
+        error: 'Request timeout: GitHub API did not respond within 10 seconds'
+      })
+    }, TIMEOUT_MS)
+
     request.on('response', (response) => {
+      clearTimeout(timeout)
       let data = ''
 
       response.on('data', (chunk) => {
@@ -100,6 +112,7 @@ export async function checkForUpdates() {
     })
 
     request.on('error', (err) => {
+      clearTimeout(timeout)
       resolve({
         updateAvailable: false,
         currentVersion,

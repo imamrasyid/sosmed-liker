@@ -56,9 +56,11 @@ async function createWindow() {
   const height = Math.min(defaultHeight, screenHeight)
 
   // Tentukan ikon kustom berdasarkan mode (pengembangan atau produksi)
-  let iconPath = join(__dirname, '../../src/renderer/src/app_logo_icon.png')
+  let iconPath
   if (app.isPackaged) {
     iconPath = join(process.resourcesPath, 'icon.png')
+  } else {
+    iconPath = join(__dirname, '../../resources/icon.png')
   }
 
   mainWindow = new BrowserWindow({
@@ -72,7 +74,8 @@ async function createWindow() {
     frame: false, // Menjadikan window benar-benar frameless (tanpa frame & overlay default sistem)
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      contextIsolation: true
     }
   })
 
@@ -127,11 +130,47 @@ app.on('window-all-closed', () => {
   }
 })
 
+// Input Validation Helpers
+function validatePlatform(platform) {
+  const validPlatforms = ['instagram', 'twitter', 'threads']
+  return validPlatforms.includes(platform)
+}
+
+function validateUrl(url) {
+  if (!url || typeof url !== 'string') return false
+  try {
+    new URL(url)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function validateId(id) {
+  return id && typeof id === 'number' && id > 0
+}
+
+function validateConfigKey(key) {
+  const validKeys = ['min_delay', 'max_delay', 'limit', 'headless', 'consecutive_skips_limit', 'scroll_step', 'max_scroll_attempts', 'browser_user_agent']
+  return validKeys.includes(key)
+}
+
 // IPC Handlers
 ipcMain.handle('ping', () => 'pong')
 
 ipcMain.handle('save-cookie', async (event, platform, content) => {
   try {
+    // Validate inputs
+    if (!validatePlatform(platform)) {
+      return { success: false, error: 'Invalid platform' }
+    }
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      return { success: false, error: 'Cookie content is required' }
+    }
+    if (content.length > 100000) {
+      return { success: false, error: 'Cookie content too large' }
+    }
+
     const userDataPath = app.getPath('userData')
     const cookieDir = join(userDataPath, 'cookie')
     if (!existsSync(cookieDir)) {
@@ -148,6 +187,11 @@ ipcMain.handle('save-cookie', async (event, platform, content) => {
 
 ipcMain.handle('delete-cookie', async (event, platform) => {
   try {
+    // Validate platform
+    if (!validatePlatform(platform)) {
+      return { success: false, error: 'Invalid platform' }
+    }
+
     const userDataPath = app.getPath('userData')
     const filePath = join(userDataPath, 'cookie', `${platform}_cookie.txt`)
     if (existsSync(filePath)) {
@@ -191,11 +235,21 @@ ipcMain.handle('check-cookies-status', async () => {
 })
 
 ipcMain.handle('start-automation', async (event, targetUrl) => {
-  if (automationManager) {
-    await automationManager.start(targetUrl)
-    return { success: true }
+  try {
+    // Validate URL
+    if (!validateUrl(targetUrl)) {
+      return { success: false, error: 'Invalid URL format' }
+    }
+
+    if (automationManager) {
+      await automationManager.start(targetUrl)
+      return { success: true }
+    }
+    return { success: false, error: 'Manager not initialized' }
+  } catch (err) {
+    console.error('Start automation failed:', err)
+    return { success: false, error: err.message }
   }
-  return { success: false, error: 'Manager not initialized' }
 })
 
 ipcMain.handle('stop-automation', async () => {
@@ -219,15 +273,21 @@ ipcMain.handle('get-liked-posts', async () => {
 })
 
 ipcMain.handle('delete-liked-post', async (event, id) => {
-  if (db) {
-    try {
+  try {
+    // Validate ID
+    if (!validateId(id)) {
+      return { success: false, error: 'Invalid ID' }
+    }
+
+    if (db) {
       await dbQueries.deleteLikedPost(db, id)
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err.message }
     }
+    return { success: false, error: 'Database not initialized' }
+  } catch (err) {
+    console.error('Delete liked post failed:', err)
+    return { success: false, error: err.message }
   }
-  return { success: false, error: 'Database not initialized' }
 })
 
 ipcMain.handle('clear-history', async () => {
@@ -267,15 +327,35 @@ ipcMain.handle('get-config', async (event, key) => {
 })
 
 ipcMain.handle('save-config', async (event, key, value) => {
-  if (db) {
-    try {
-      await dbQueries.saveConfig(db, key, value)
-      return { success: true }
-    } catch (err) {
-      return { success: false, error: err.message }
+  try {
+    // Validate key
+    if (!validateConfigKey(key)) {
+      return { success: false, error: 'Invalid config key' }
     }
+
+    // Validate value
+    if (value === null || value === undefined) {
+      return { success: false, error: 'Config value is required' }
+    }
+
+    const valueStr = String(value).trim()
+    if (valueStr.length === 0) {
+      return { success: false, error: 'Config value cannot be empty' }
+    }
+
+    if (valueStr.length > 1000) {
+      return { success: false, error: 'Config value too large' }
+    }
+
+    if (db) {
+      await dbQueries.saveConfig(db, key, valueStr)
+      return { success: true }
+    }
+    return { success: false, error: 'Database not initialized' }
+  } catch (err) {
+    console.error('Save config failed:', err)
+    return { success: false, error: err.message }
   }
-  return { success: false, error: 'Database not initialized' }
 })
 
 ipcMain.handle('backup-database', async () => {
@@ -284,7 +364,7 @@ ipcMain.handle('backup-database', async () => {
     if (!existsSync(dbPath)) {
       return { success: false, error: 'Database file does not exist' }
     }
-    
+
     const { filePath } = await dialog.showSaveDialog(mainWindow, {
       title: 'Pilih Lokasi Simpan Cadangan Database',
       defaultPath: join(app.getPath('downloads'), `sosmed-liker-backup-${new Date().toISOString().slice(0, 10)}.bak`),
@@ -294,11 +374,11 @@ ipcMain.handle('backup-database', async () => {
         { name: 'All Files', extensions: ['*'] }
       ]
     })
-    
+
     if (!filePath) {
       return { success: false, cancelled: true }
     }
-    
+
     copyFileSync(dbPath, filePath)
     return { success: true, path: filePath }
   } catch (err) {
@@ -317,22 +397,27 @@ ipcMain.handle('restore-database', async () => {
       ],
       properties: ['openFile']
     })
-    
+
     if (!filePaths || filePaths.length === 0) {
       return { success: false, cancelled: true }
     }
-    
+
     const backupPath = filePaths[0]
     const dbPath = getDbPath()
-    
+
     // Close active db connection first to avoid file lock
     if (db) {
-      await new Promise((resolve) => db.close(() => resolve()))
+      await new Promise((resolve, reject) => {
+        db.close((err) => {
+          if (err) reject(err)
+          else resolve()
+        })
+      })
     }
-    
+
     // Copy backup file to overwrite current database
     copyFileSync(backupPath, dbPath)
-    
+
     // Reinitialize DB connection
     const sqlite3 = require('sqlite3')
     db = new sqlite3.Database(dbPath, (err) => {
@@ -345,7 +430,7 @@ ipcMain.handle('restore-database', async () => {
         }
       }
     })
-    
+
     return { success: true }
   } catch (err) {
     console.error('Restore database failed:', err)
@@ -389,6 +474,21 @@ ipcMain.handle('close-window', () => {
     mainWindow.close()
   }
   return true
+})
+
+ipcMain.handle('open-external', async (event, url) => {
+  try {
+    // Validate URL
+    if (!validateUrl(url)) {
+      return { success: false, error: 'Invalid URL format' }
+    }
+
+    await shell.openExternal(url)
+    return { success: true }
+  } catch (err) {
+    console.error('Failed to open external URL:', err)
+    return { success: false, error: err.message }
+  }
 })
 
 
