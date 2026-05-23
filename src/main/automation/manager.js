@@ -33,6 +33,35 @@ export class AutomationManager {
     this.log(`Memulai proses untuk target: ${targetUrl}`)
 
     try {
+      // Detect platform from URL
+      let platform = 'instagram'
+      const lowerUrl = targetUrl.toLowerCase()
+      if (lowerUrl.includes('instagram.com')) {
+        platform = 'instagram'
+      } else if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) {
+        platform = 'twitter'
+      } else if (lowerUrl.includes('threads.net') || lowerUrl.includes('threads.com')) {
+        platform = 'threads'
+      }
+
+      // Check blacklist
+      const isBlacklisted = await dbQueries.isProfileBlacklisted(this.db, platform, targetUrl)
+      if (isBlacklisted) {
+        this.log(`[SKIP] Target URL ada di blacklist. Proses dibatalkan.`)
+        return false
+      }
+
+      // Check whitelist if enabled
+      const whitelistEnabled = await dbQueries.hasWhitelistEnabled(this.db, platform)
+      if (whitelistEnabled) {
+        const isWhitelisted = await dbQueries.isProfileWhitelisted(this.db, platform, targetUrl)
+        if (!isWhitelisted) {
+          this.log(`[SKIP] Target URL tidak ada di whitelist (mode whitelist aktif). Proses dibatalkan.`)
+          return false
+        }
+        this.log(`[INFO] Target URL ada di whitelist. Melanjutkan proses.`)
+      }
+
       // Ambil konfigurasi dinamis dari database SQLite
       this.log('Membaca konfigurasi bot dari database...')
       const minDelay = parseInt(await dbQueries.getConfig(this.db, 'min_delay') || '3000', 10)
@@ -48,17 +77,34 @@ export class AutomationManager {
 
       this.log(`Konfigurasi aktif -> Delay: ${minDelay}-${maxDelay}ms, Batas Post: ${limit}, Headless: ${headless}, Skip Limit: ${consecutiveSkipsLimit}, Scroll: ${scrollStep}px, Maks Gulir: ${maxScrollAttempts}, UA: ${userAgent}`)
 
+      // Get active profile for the platform
+      const activeProfile = await dbQueries.getActiveProfile(this.db, platform)
+      if (activeProfile) {
+        this.log(`Menggunakan profil aktif: ${activeProfile.profile_name}`)
+      } else {
+        this.log(`⚠️ PERINGATAN: Tidak ada profil aktif untuk ${platform}.`)
+        this.log(`⚠️ Cookie folder fallback sudah DEPRECATED. Silakan migrasi ke sistem multi-profile di Settings > Profiles.`)
+        this.log(`Menggunakan cookie dari folder sebagai fallback sementara...`)
+      }
+
+      // Get active proxy
+      const activeProxy = await dbQueries.getActiveProxy(this.db)
+      if (activeProxy) {
+        this.log(`Menggunakan proxy: ${activeProxy.proxy_type}://${activeProxy.host}:${activeProxy.port}`)
+      } else {
+        this.log(`Tidak ada proxy aktif. Koneksi langsung.`)
+      }
+
       // Target the 'cookie' folder in the userData path (accessible for write on production)
       const cookiesFolder = join(app.getPath('userData'), 'cookie')
-      
-      this.log('Membaca folder cookie dan menyuntikkan sesi...')
-      const { browser, context } = await launchBrowserWithCookies(cookiesFolder, headless, userAgent)
+
+      this.log('Membaca cookie dan menyuntikkan sesi...')
+      const { browser, context } = await launchBrowserWithCookies(cookiesFolder, headless, userAgent, activeProfile, activeProxy)
       this.browser = browser
       this.context = context
 
       let normalizedUrl = targetUrl
-      const lowerUrl = targetUrl.toLowerCase()
-      
+
       if (lowerUrl.includes('instagram.com')) {
         await processInstagram(this.context, this.db, normalizedUrl, this.log.bind(this), {
           minDelay,
@@ -110,7 +156,7 @@ export class AutomationManager {
       this.isRunning = false
       this.log('Proses otomatisasi selesai.')
     }
-    
+
     return true
   }
 
@@ -127,5 +173,73 @@ export class AutomationManager {
       this.isRunning = false
       this.log('Proses dihentikan secara manual.')
     }
+  }
+
+  async startBatch(batchId) {
+    if (this.isRunning) {
+      this.log('Otomatisasi sudah berjalan!')
+      return false
+    }
+
+    const batchJob = await dbQueries.getBatchJob(this.db, batchId)
+    if (!batchJob) {
+      this.log('[ERROR] Batch job tidak ditemukan')
+      return false
+    }
+
+    this.isRunning = true
+    this.log(`Memulai batch job: ${batchJob.name} (${batchJob.total_urls} URLs)`)
+
+    try {
+      // Update batch job status to running
+      await dbQueries.updateBatchJobStatus(this.db, batchId, 'running')
+
+      // Get all URLs for this batch
+      const batchUrls = await dbQueries.getBatchUrls(this.db, batchId)
+
+      let processed = 0
+      let successful = 0
+      let failed = 0
+
+      // Process each URL sequentially
+      for (const batchUrl of batchUrls) {
+        this.log(`[${processed + 1}/${batchJob.total_urls}] Memproses: ${batchUrl.url}`)
+
+        try {
+          const result = await this.start(batchUrl.url)
+
+          if (result) {
+            await dbQueries.updateBatchUrlStatus(this.db, batchUrl.id, 'completed')
+            successful++
+          } else {
+            await dbQueries.updateBatchUrlStatus(this.db, batchUrl.id, 'failed', 'Skipped by blacklist/whitelist')
+            failed++
+          }
+        } catch (error) {
+          await dbQueries.updateBatchUrlStatus(this.db, batchUrl.id, 'failed', error.message)
+          failed++
+          this.log(`[ERROR] Gagal memproses ${batchUrl.url}: ${error.message}`)
+        }
+
+        processed++
+        await dbQueries.updateBatchJobProgress(this.db, batchId, processed, successful, failed)
+
+        // Small delay between URLs
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      }
+
+      // Update batch job status to completed
+      await dbQueries.updateBatchJobStatus(this.db, batchId, 'completed')
+      this.log(`Batch job selesai: ${successful} berhasil, ${failed} gagal`)
+
+    } catch (error) {
+      await dbQueries.updateBatchJobStatus(this.db, batchId, 'failed')
+      this.log(`[KESALAHAN FATAL BATCH]: ${error.message}`)
+    } finally {
+      this.isRunning = false
+      this.log('Batch job selesai.')
+    }
+
+    return true
   }
 }

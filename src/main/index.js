@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, screen, dialog } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync, copyFileSync, writeFileSync, unlinkSync } from 'fs'
+import { existsSync, mkdirSync, copyFileSync, writeFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDb, getDbPath } from './db/setup.js'
 import { AutomationManager } from './automation/manager.js'
@@ -158,82 +158,6 @@ function validateConfigKey(key) {
 // IPC Handlers
 ipcMain.handle('ping', () => 'pong')
 
-ipcMain.handle('save-cookie', async (event, platform, content) => {
-  try {
-    // Validate inputs
-    if (!validatePlatform(platform)) {
-      return { success: false, error: 'Invalid platform' }
-    }
-    if (!content || typeof content !== 'string' || content.trim().length === 0) {
-      return { success: false, error: 'Cookie content is required' }
-    }
-    if (content.length > 100000) {
-      return { success: false, error: 'Cookie content too large' }
-    }
-
-    const userDataPath = app.getPath('userData')
-    const cookieDir = join(userDataPath, 'cookie')
-    if (!existsSync(cookieDir)) {
-      mkdirSync(cookieDir, { recursive: true })
-    }
-    const filePath = join(cookieDir, `${platform}_cookie.txt`)
-    writeFileSync(filePath, content, 'utf-8')
-    return { success: true }
-  } catch (err) {
-    console.error('Failed to save cookie:', err)
-    return { success: false, error: err.message }
-  }
-})
-
-ipcMain.handle('delete-cookie', async (event, platform) => {
-  try {
-    // Validate platform
-    if (!validatePlatform(platform)) {
-      return { success: false, error: 'Invalid platform' }
-    }
-
-    const userDataPath = app.getPath('userData')
-    const filePath = join(userDataPath, 'cookie', `${platform}_cookie.txt`)
-    if (existsSync(filePath)) {
-      unlinkSync(filePath)
-    }
-    return { success: true }
-  } catch (err) {
-    console.error('Failed to delete cookie:', err)
-    return { success: false, error: err.message }
-  }
-})
-
-ipcMain.handle('check-cookies-status', async () => {
-  try {
-    const userDataPath = app.getPath('userData')
-    const localPath = app.isPackaged
-      ? join(process.resourcesPath, 'cookie')
-      : join(app.getAppPath(), 'resources/cookie')
-
-    const statuses = {
-      instagram: false,
-      twitter: false,
-      threads: false
-    }
-
-    const platforms = ['instagram', 'twitter', 'threads']
-    for (const platform of platforms) {
-      const p1 = join(userDataPath, 'cookie', `${platform}_cookie.txt`)
-      const p2 = join(localPath, `${platform}_cookie.txt`)
-      const p3 = join(userDataPath, 'cookie', `${platform}.txt`)
-      const p4 = join(localPath, `${platform}.txt`)
-      if (existsSync(p1) || existsSync(p2) || existsSync(p3) || existsSync(p4)) {
-        statuses[platform] = true
-      }
-    }
-    return statuses
-  } catch (err) {
-    console.error('Failed to check cookies status:', err)
-    return { instagram: false, twitter: false, threads: false }
-  }
-})
-
 ipcMain.handle('start-automation', async (event, targetUrl) => {
   try {
     // Validate URL
@@ -354,6 +278,344 @@ ipcMain.handle('save-config', async (event, key, value) => {
     return { success: false, error: 'Database not initialized' }
   } catch (err) {
     console.error('Save config failed:', err)
+    return { success: false, error: err.message }
+  }
+})
+
+// Profile Lists (Blacklist/Whitelist) IPC handlers
+ipcMain.handle('add-to-blacklist', async (event, platform, profileUrl, profileName) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const id = await dbQueries.addToBlacklist(db, platform, profileUrl, profileName)
+    return { success: true, id }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('add-to-whitelist', async (event, platform, profileUrl, profileName) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const id = await dbQueries.addToWhitelist(db, platform, profileUrl, profileName)
+    return { success: true, id }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('remove-from-list', async (event, listType, platform, profileUrl) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    await dbQueries.removeFromList(db, listType, platform, profileUrl)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-blacklist', async (event, platform) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const list = await dbQueries.getBlacklist(db, platform)
+    return { success: true, data: list }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-whitelist', async (event, platform) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const list = await dbQueries.getWhitelist(db, platform)
+    return { success: true, data: list }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('has-whitelist-enabled', async (event, platform) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const enabled = await dbQueries.hasWhitelistEnabled(db, platform)
+    return { success: true, enabled }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// Profiles IPC handlers
+ipcMain.handle('get-profiles', async (event, platform) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const profiles = await dbQueries.getProfiles(db, platform)
+    return { success: true, data: profiles }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-active-profile', async (event, platform) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const profile = await dbQueries.getActiveProfile(db, platform)
+    return { success: true, data: profile }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('save-profile', async (event, platform, profileName, cookieContent) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const id = await dbQueries.saveProfile(db, platform, profileName, cookieContent)
+    return { success: true, id }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('delete-profile', async (event, profileId) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    await dbQueries.deleteProfile(db, profileId)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('set-active-profile', async (event, profileId) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    await dbQueries.setActiveProfile(db, profileId)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// Proxies IPC handlers
+ipcMain.handle('get-proxies', async () => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const proxies = await dbQueries.getProxies(db)
+    return { success: true, data: proxies }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-active-proxy', async () => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const proxy = await dbQueries.getActiveProxy(db)
+    return { success: true, data: proxy }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('save-proxy', async (event, proxyType, host, port, username, password) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const id = await dbQueries.saveProxy(db, proxyType, host, port, username, password)
+    return { success: true, id }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('delete-proxy', async (event, proxyId) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    await dbQueries.deleteProxy(db, proxyId)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('set-active-proxy', async (event, proxyId) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    await dbQueries.setActiveProxy(db, proxyId)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// Batch Jobs IPC handlers
+ipcMain.handle('create-batch-job', async (event, name, platform, urls) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const batchId = await dbQueries.createBatchJob(db, name, platform, urls)
+    return { success: true, batchId }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-batch-jobs', async () => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const jobs = await dbQueries.getBatchJobs(db)
+    return { success: true, data: jobs }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-batch-job', async (event, batchId) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const job = await dbQueries.getBatchJob(db, batchId)
+    return { success: true, data: job }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-batch-urls', async (event, batchId) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const urls = await dbQueries.getBatchUrls(db, batchId)
+    return { success: true, data: urls }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('delete-batch-job', async (event, batchId) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    await dbQueries.deleteBatchJob(db, batchId)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('start-batch-job', async (event, batchId) => {
+  try {
+    if (!automationManager) return { success: false, error: 'Automation manager not initialized' }
+    await automationManager.startBatch(batchId)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// Analytics IPC handlers
+ipcMain.handle('get-liked-posts-by-platform', async (event, days) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const data = await dbQueries.getLikedPostsByPlatform(db, days || 30)
+    return { success: true, data }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-liked-posts-count-by-platform', async () => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const data = await dbQueries.getLikedPostsCountByPlatform(db)
+    return { success: true, data }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-liked-posts-daily', async (event, days) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const data = await dbQueries.getLikedPostsDaily(db, days || 30)
+    return { success: true, data }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-batch-job-stats', async () => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const data = await dbQueries.getBatchJobStats(db)
+    return { success: true, data }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// Comment Templates IPC handlers
+ipcMain.handle('get-comment-templates', async (event, platform) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const templates = await dbQueries.getCommentTemplates(db, platform)
+    return { success: true, data: templates }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('get-active-comment-template', async (event, platform) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const template = await dbQueries.getActiveCommentTemplate(db, platform)
+    return { success: true, data: template }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('save-comment-template', async (event, platform, templateName, commentText) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const id = await dbQueries.saveCommentTemplate(db, platform, templateName, commentText)
+    return { success: true, id }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('delete-comment-template', async (event, templateId) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    await dbQueries.deleteCommentTemplate(db, templateId)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('set-active-comment-template', async (event, templateId) => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    await dbQueries.setActiveCommentTemplate(db, templateId)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// Migration IPC handlers
+ipcMain.handle('get-migration-status', async () => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const status = await dbQueries.getMigrationStatus(db)
+    return { success: true, migrated: status }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('migrate-cookies-to-profiles', async () => {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' }
+    const cookieFolder = join(app.getPath('userData'), 'cookie')
+    const result = await dbQueries.migrateCookiesToProfiles(db, cookieFolder)
+    return { success: true, ...result }
+  } catch (err) {
     return { success: false, error: err.message }
   }
 })

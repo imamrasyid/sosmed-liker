@@ -10,8 +10,10 @@ import { Analytics } from "./components/Analytics/Analytics.jsx";
 import { Settings } from "./components/Settings/Settings.jsx";
 import { SettingsApp } from "./components/Settings/SettingsApp.jsx";
 import { Accounts } from "./components/Accounts/Accounts.jsx";
+import { useTranslation } from "react-i18next";
 
 function AppContent() {
+  const { t } = useTranslation();
   const {
     activeTab,
     updateModalOpen,
@@ -74,16 +76,16 @@ function AppContent() {
               </div>
               <div>
                 <h3 className="text-lg font-black text-slate-200">
-                  Pembaruan Versi Tersedia!
+                  {t("updateModal.updateAvailable")}
                 </h3>
                 <p className="text-slate-400 text-sm mt-1">
-                  Versi baru aplikasi telah dirilis di GitHub.
+                  {t("updateModal.updateDesc")}
                 </p>
               </div>
               <div className="flex gap-4 text-xs font-semibold py-2 px-4 bg-slate-950 rounded-xl border border-slate-850">
                 <div className="flex flex-col">
                   <span className="text-slate-500 text-[10px]">
-                    Versi Saat Ini
+                    {t("updateModal.currentVersion")}
                   </span>
                   <span className="text-slate-300 font-mono">
                     {updateInfo.currentVersion}
@@ -92,7 +94,7 @@ function AppContent() {
                 <div className="h-8 w-px bg-slate-800 self-center"></div>
                 <div className="flex flex-col">
                   <span className="text-slate-500 text-[10px]">
-                    Versi Terbaru
+                    {t("updateModal.latestVersion")}
                   </span>
                   <span className="text-emerald-400 font-extrabold font-mono">
                     {updateInfo.latestVersion}
@@ -102,7 +104,7 @@ function AppContent() {
               {updateInfo.releaseNotes && (
                 <div className="w-full text-left text-xs bg-slate-950/60 border border-slate-850/60 rounded-xl p-3.5 max-h-36 overflow-y-auto text-slate-400 leading-relaxed">
                   <strong className="text-slate-350 text-[11px] block mb-1">
-                    Catatan Rilis:
+                    {t("updateModal.releaseNotes")}:
                   </strong>
                   <pre className="whitespace-pre-wrap font-sans text-[11px] text-slate-400">
                     {updateInfo.releaseNotes}
@@ -117,13 +119,13 @@ function AppContent() {
                   }}
                   className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-lg shadow-indigo-500/20 active:scale-[0.98]"
                 >
-                  📥 Unduh & Perbarui
+                  📥 {t("updateModal.downloadUpdate")}
                 </button>
                 <button
                   onClick={() => setUpdateModalOpen(false)}
                   className="px-4 py-3 bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-bold uppercase transition-all duration-300"
                 >
-                  Nanti
+                  {t("updateModal.later")}
                 </button>
               </div>
             </div>
@@ -144,12 +146,17 @@ function AppContent() {
 
 function App() {
   return (
-    <ErrorBoundary>
-      <AppProvider>
+    <AppProvider>
+      <ErrorBoundaryWrapper>
         <AppContent />
-      </AppProvider>
-    </ErrorBoundary>
+      </ErrorBoundaryWrapper>
+    </AppProvider>
   );
+}
+
+function ErrorBoundaryWrapper({ children }) {
+  const { t } = useTranslation();
+  return <ErrorBoundary t={t}>{children}</ErrorBoundary>;
 }
 
 export default App;

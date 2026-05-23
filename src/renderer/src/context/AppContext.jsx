@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
 import { TABS, PLATFORMS, TOAST_TYPES } from "../utils/constants.js";
 
 const AppContext = createContext(null);
@@ -7,18 +13,15 @@ export function AppProvider({ children }) {
   // Navigation State
   const [activeTab, setActiveTab] = useState(TABS.DASHBOARD);
   const [selectedPlatform, setSelectedPlatform] = useState(PLATFORMS.INSTAGRAM);
+  const [settingsSubTab, setSettingsSubTab] = useState("config");
+  const [language, setLanguage] = useState("id");
 
-  // Cookie Setup & Status State
+  // Cookie Status State (for showing profile status in Accounts view)
   const [cookiesStatus, setCookiesStatus] = useState({
     [PLATFORMS.INSTAGRAM]: false,
     [PLATFORMS.TWITTER]: false,
     [PLATFORMS.THREADS]: false,
   });
-  const [activeSetupPlatform, setActiveSetupPlatform] = useState(
-    PLATFORMS.INSTAGRAM,
-  );
-  const [cookieInput, setCookieInput] = useState("");
-  const [setupStep, setSetupStep] = useState(1);
 
   // Input & Status State
   const [targetUrl, setTargetUrl] = useState("");
@@ -39,11 +42,10 @@ export function AppProvider({ children }) {
 
   // Sidebar Collapsible States
   const [expandedGroups, setExpandedGroups] = useState({
-    "dashboard-group": true,
     "campaigns-group": true,
-    "credentials-group": true,
-    "database-group": true,
+    "history-group": true,
     "analytics-group": true,
+    "accounts-group": true,
     "settings-group": true,
   });
 
@@ -66,17 +68,6 @@ export function AppProvider({ children }) {
 
   const hideToast = useCallback(() => {
     setToast({ show: false, message: "", type: TOAST_TYPES.SUCCESS });
-  }, []);
-
-  const checkAllCookiesStatus = useCallback(async () => {
-    if (window.api && window.api.checkCookiesStatus) {
-      try {
-        const statuses = await window.api.checkCookiesStatus();
-        setCookiesStatus(statuses);
-      } catch (err) {
-        console.error("Failed to check cookies status:", err);
-      }
-    }
   }, []);
 
   const loadHistory = useCallback(async () => {
@@ -105,54 +96,39 @@ export function AppProvider({ children }) {
     return { total_liked: 0, total_profiles: 0, liked_today: 0 };
   }, []);
 
-  const handleSaveCookie = useCallback(async () => {
-    if (!cookieInput.trim()) {
-      return {
-        success: false,
-        error: "Harap tempel isi cookie Netscape Anda.",
-      };
-    }
-
-    if (window.api && window.api.saveCookie) {
+  const checkAllCookiesStatus = useCallback(async () => {
+    if (window.api && window.api.getActiveProfile) {
       try {
-        const res = await window.api.saveCookie(
-          activeSetupPlatform,
-          cookieInput,
-        );
-        if (res.success) {
-          setCookieInput("");
-          setSetupStep(1);
-          await checkAllCookiesStatus();
-          return { success: true };
-        } else {
-          return { success: false, error: res.error };
-        }
+        const platforms = [
+          PLATFORMS.INSTAGRAM,
+          PLATFORMS.TWITTER,
+          PLATFORMS.THREADS,
+        ];
+        const statusPromises = platforms.map(async (platform) => {
+          const result = await window.api.getActiveProfile(platform);
+          return {
+            platform,
+            hasProfile: result.success && result.data !== null,
+          };
+        });
+
+        const statuses = await Promise.all(statusPromises);
+        const newStatus = {};
+        statuses.forEach(({ platform, hasProfile }) => {
+          newStatus[platform] = hasProfile;
+        });
+
+        setCookiesStatus(newStatus);
       } catch (err) {
-        return { success: false, error: err.message };
+        console.error("Failed to check profile status:", err);
       }
     }
-    return { success: false, error: "API tidak tersedia" };
-  }, [cookieInput, activeSetupPlatform, checkAllCookiesStatus]);
+  }, []);
 
-  const handleDeleteCookie = useCallback(
-    async (platform) => {
-      if (window.api && window.api.deleteCookie) {
-        try {
-          const res = await window.api.deleteCookie(platform);
-          if (res.success) {
-            await checkAllCookiesStatus();
-            return { success: true };
-          } else {
-            return { success: false, error: res.error };
-          }
-        } catch (err) {
-          return { success: false, error: err.message };
-        }
-      }
-      return { success: false, error: "API tidak tersedia" };
-    },
-    [checkAllCookiesStatus],
-  );
+  // Load profile status on mount
+  useEffect(() => {
+    checkAllCookiesStatus();
+  }, [checkAllCookiesStatus]);
 
   const loadAppVersion = useCallback(async () => {
     if (window.api && window.api.getAppVersion) {
@@ -225,18 +201,14 @@ export function AppProvider({ children }) {
     setActiveTab,
     selectedPlatform,
     setSelectedPlatform,
+    settingsSubTab,
+    setSettingsSubTab,
+    language,
+    setLanguage,
 
-    // Cookie Management
+    // Profile Status (for Accounts view)
     cookiesStatus,
-    activeSetupPlatform,
-    setActiveSetupPlatform,
-    cookieInput,
-    setCookieInput,
-    setupStep,
-    setSetupStep,
     checkAllCookiesStatus,
-    handleSaveCookie,
-    handleDeleteCookie,
 
     // Input
     targetUrl,

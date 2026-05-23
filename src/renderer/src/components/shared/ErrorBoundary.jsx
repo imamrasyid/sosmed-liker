@@ -1,21 +1,23 @@
-import React from 'react'
+import React from "react";
+import { useTranslation } from "react-i18next";
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
-    super(props)
-    this.state = { hasError: false, error: null, errorInfo: null }
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+    this.t = props.t || ((key) => key); // Fallback if t not available in class component
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true }
+    return { hasError: true };
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo)
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
     this.setState({
       error,
-      errorInfo
-    })
+      errorInfo,
+    });
   }
 
   render() {
@@ -27,18 +29,21 @@ export class ErrorBoundary extends React.Component {
               <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center text-3xl">
                 ⚠️
               </div>
-              <h2 className="text-xl font-bold text-red-400">Terjadi Kesalahan</h2>
+              <h2 className="text-xl font-bold text-red-400">
+                {this.t("errorBoundary.errorOccurred")}
+              </h2>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Aplikasi mengalami error tidak terduga. Silakan refresh aplikasi atau hubungi pengembang jika masalah berlanjut.
+                {this.t("errorBoundary.errorDesc")}
               </p>
               {this.state.error && (
                 <details className="w-full text-left mt-4">
                   <summary className="text-xs font-bold text-slate-500 cursor-pointer hover:text-slate-300 transition-colors">
-                    Lihat Detail Error
+                    {this.t("errorBoundary.viewErrorDetails")}
                   </summary>
                   <pre className="mt-2 p-4 bg-slate-950 rounded-xl text-xs text-red-400 overflow-auto max-h-40 font-mono">
                     {this.state.error.toString()}
-                    {this.state.errorInfo && this.state.errorInfo.componentStack}
+                    {this.state.errorInfo &&
+                      this.state.errorInfo.componentStack}
                   </pre>
                 </details>
               )}
@@ -46,14 +51,14 @@ export class ErrorBoundary extends React.Component {
                 onClick={() => window.location.reload()}
                 className="mt-6 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-sm font-bold transition-all duration-300 shadow-lg shadow-indigo-500/20 active:scale-[0.98]"
               >
-                Refresh Aplikasi
+                {this.t("errorBoundary.refreshApp")}
               </button>
             </div>
           </div>
         </div>
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }

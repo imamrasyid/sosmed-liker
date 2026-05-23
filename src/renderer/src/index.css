@@ -10,6 +10,18 @@
     background-color: #0f172a; /* slate-900 */
     color: #f1f5f9; /* slate-100 */
   }
+
+  /* Interactive elements should show pointer cursor on hover */
+  button,
+  a,
+  [role="button"],
+  [onclick],
+  select,
+  input[type="checkbox"],
+  input[type="radio"],
+  label {
+    cursor: pointer;
+  }
 }
 
 /* Custom drag region for frameless window */

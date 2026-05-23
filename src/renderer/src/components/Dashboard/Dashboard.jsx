@@ -4,6 +4,7 @@ import { useAutomation } from "../../hooks/useAutomation.js";
 import { useConfig } from "../../hooks/useConfig.js";
 import { PLATFORMS, PLATFORM_NAMES, LOG_TYPES } from "../../utils/constants.js";
 import { getPlatformPlaceholder } from "../../utils/validators.js";
+import { useTranslation } from "react-i18next";
 
 export function Dashboard() {
   const {
@@ -11,15 +12,16 @@ export function Dashboard() {
     setSelectedPlatform,
     cookiesStatus,
     checkAllCookiesStatus,
+    showToast,
     setActiveTab,
     setSetupStep,
     setActiveSetupPlatform,
-    showToast,
   } = useAppContext();
 
   const { isRunning, logs, handleStart, handleStop, clearLogs } =
     useAutomation();
   const { config } = useConfig();
+  const { t } = useTranslation();
 
   const [targetUrl, setTargetUrl] = useState("");
   const [logSearch, setLogSearch] = useState("");
@@ -181,10 +183,10 @@ export function Dashboard() {
       {/* Dynamic Header */}
       <div>
         <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-indigo-400 tracking-tight">
-          Control Center
+          {t("dashboard.title")}
         </h2>
         <p className="text-slate-400 text-sm mt-1">
-          Sistem otomatisasi interaksi cerdas bertenaga Playwright & SQLite.
+          {t("dashboard.description")}
         </p>
       </div>
 
@@ -222,7 +224,9 @@ export function Dashboard() {
           <div className="flex flex-col gap-4">
             <div className="flex justify-between items-center">
               <label className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <span>Target Profile {PLATFORM_NAMES[selectedPlatform]}</span>
+                <span>
+                  {t("dashboard.targetUrl")} {PLATFORM_NAMES[selectedPlatform]}
+                </span>
               </label>
               <span
                 className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border select-none uppercase
@@ -231,7 +235,7 @@ export function Dashboard() {
                 ${selectedPlatform === PLATFORMS.THREADS ? "text-zinc-400 bg-zinc-500/10 border-zinc-500/20" : ""}
               `}
               >
-                {PLATFORM_NAMES[selectedPlatform]} Platform
+                {PLATFORM_NAMES[selectedPlatform]} {t("dashboard.platform")}
               </span>
             </div>
 
@@ -270,7 +274,7 @@ export function Dashboard() {
               ></span>
               <div>
                 <span className="text-xs font-bold text-slate-200 block">
-                  Status Kuki Sesi:{" "}
+                  {t("dashboard.cookieStatus")}:{" "}
                   <span
                     className={
                       cookiesStatus[selectedPlatform]
@@ -279,12 +283,12 @@ export function Dashboard() {
                     }
                   >
                     {cookiesStatus[selectedPlatform]
-                      ? "Tersedia & Valid"
-                      : "Belum Dikonfigurasi"}
+                      ? t("dashboard.cookieValid")
+                      : t("dashboard.cookieNotConfigured")}
                   </span>
                 </span>
                 <span className="text-[10px] text-slate-500 block">
-                  Otomatisasi memerlukan berkas kuki login.
+                  {t("dashboard.cookieHint")}
                 </span>
               </div>
             </div>
@@ -328,7 +332,9 @@ export function Dashboard() {
                   d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              {cookiesStatus[selectedPlatform] ? "Periksa Kuki" : "Setup Kuki"}
+              {cookiesStatus[selectedPlatform]
+                ? t("dashboard.checkCookie")
+                : t("dashboard.checkCookie")}
             </button>
           </div>
 
@@ -368,7 +374,7 @@ export function Dashboard() {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  <span>PROSES BERJALAN...</span>
+                  <span>{t("dashboard.automationRunning")}</span>
                 </>
               ) : (
                 <>
@@ -390,7 +396,7 @@ export function Dashboard() {
                       d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <span>MULAI OTOMATISASI</span>
+                  <span>{t("dashboard.startAutomation")}</span>
                 </>
               )}
             </button>
@@ -400,7 +406,7 @@ export function Dashboard() {
                 onClick={handleStop}
                 className="py-3.5 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 transition-all duration-300 border border-red-500/20 hover:shadow-red-500/25 shadow-xl active:scale-[0.98]"
               >
-                HENTIKAN
+                {t("dashboard.stopAutomation")}
               </button>
             )}
           </div>
@@ -411,33 +417,33 @@ export function Dashboard() {
           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl pointer-events-none"></div>
 
           <span className="text-[10px] font-bold text-slate-500 tracking-widest uppercase">
-            Info Konfigurasi Aktif
+            {t("dashboard.configInfo")}
           </span>
 
           <div className="flex-1 flex flex-col justify-center gap-3">
             <div className="flex justify-between items-center border-b border-slate-800/50 pb-2">
               <span className="text-xs text-slate-400 font-medium">
-                Headless Mode
+                {t("dashboard.headlessMode")}
               </span>
               <span
                 className={`text-xs font-bold ${config.headless ? "text-amber-400" : "text-indigo-400"}`}
               >
                 {config.headless
-                  ? "AKTIF (Silent)"
-                  : "NONAKTIF (Browser Muncul)"}
+                  ? t("dashboard.headlessActive")
+                  : t("dashboard.headlessInactive")}
               </span>
             </div>
             <div className="flex justify-between items-center border-b border-slate-800/50 pb-2">
               <span className="text-xs text-slate-400 font-medium">
-                Post Limit
+                {t("dashboard.postLimit")}
               </span>
               <span className="text-xs font-bold text-slate-200">
-                {config.limit} Post
+                {config.limit} {t("dashboard.post")}
               </span>
             </div>
             <div className="flex justify-between items-center pb-1">
               <span className="text-xs text-slate-400 font-medium">
-                Delay Range
+                {t("dashboard.delayRange")}
               </span>
               <span className="text-xs font-bold text-slate-200">
                 {config.minDelay / 1000}s - {config.maxDelay / 1000}s
@@ -449,7 +455,7 @@ export function Dashboard() {
             onClick={() => setActiveTab("settings")}
             className="w-full text-center py-2 bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/40 hover:border-slate-700 transition-all rounded-xl text-xs font-bold text-slate-300"
           >
-            Ubah Pengaturan
+            {t("dashboard.changeSettings")}
           </button>
         </div>
       </div>
@@ -462,7 +468,7 @@ export function Dashboard() {
         <div className="flex flex-col gap-4 mb-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <span>Log Aktivitas Interaktif</span>
+              <span>{t("dashboard.logHeader")}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
             </h3>
 
@@ -470,18 +476,18 @@ export function Dashboard() {
               <button
                 onClick={clearLogs}
                 className="p-1.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg text-slate-400 hover:text-slate-200 transition-all text-xs font-semibold flex items-center gap-1.5"
-                title="Bersihkan log di layar"
+                title={t("dashboard.clearLogsTooltip")}
               >
-                Bersihkan Layar
+                {t("dashboard.clearLogs")}
               </button>
 
               <button
                 onClick={handleDownloadLogs}
                 disabled={logs.length === 0}
                 className="p-1.5 bg-slate-800/50 hover:bg-indigo-600/30 hover:text-indigo-200 disabled:opacity-40 disabled:hover:bg-slate-800/50 disabled:hover:text-slate-400 border border-slate-700/50 rounded-lg text-slate-400 hover:text-slate-200 transition-all text-xs font-semibold flex items-center gap-1.5"
-                title="Unduh log berkas .txt"
+                title={t("dashboard.downloadLogsTooltip")}
               >
-                Unduh Log (.txt)
+                {t("dashboard.downloadLogs")}
               </button>
             </div>
           </div>
@@ -490,7 +496,7 @@ export function Dashboard() {
           <div className="flex gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-500 font-bold px-2 uppercase">
-                Filter:
+                {t("dashboard.filterAll")}:
               </span>
               {Object.values(LOG_TYPES)
                 .filter((t) => t !== LOG_TYPES.ACTION)
@@ -531,7 +537,7 @@ export function Dashboard() {
                 type="text"
                 value={logSearch}
                 onChange={(e) => setLogSearch(e.target.value)}
-                placeholder="Cari log..."
+                placeholder={t("dashboard.searchLogs")}
                 className="w-full bg-slate-900/50 border border-slate-800/80 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-300 focus:outline-none focus:border-slate-700 transition-all duration-300 placeholder-slate-700"
               />
             </div>
@@ -549,7 +555,7 @@ export function Dashboard() {
               <span
                 className={`w-1.5 h-1.5 rounded-full ${autoScroll ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`}
               ></span>
-              Auto-Scroll: {autoScroll ? "ON" : "OFF"}
+              {t("dashboard.autoScroll")}: {autoScroll ? "ON" : "OFF"}
             </button>
           </div>
         </div>
@@ -561,8 +567,7 @@ export function Dashboard() {
         >
           {filteredLogs.length === 0 ? (
             <div className="h-full flex items-center justify-center text-slate-600 select-none">
-              Tidak ada log aktivitas{" "}
-              {logSearch && "yang cocok dengan pencarian Anda"}
+              {t("dashboard.noLogs")} {logSearch && t("dashboard.noLogsMatch")}
             </div>
           ) : (
             filteredLogs.map((log, index) => {

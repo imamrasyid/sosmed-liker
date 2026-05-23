@@ -3,6 +3,7 @@ import { useAppContext } from "../../context/AppContext.jsx";
 import { useDatabase } from "../../hooks/useDatabase.js";
 import { formatPostUrl, formatDate } from "../../utils/formatters.js";
 import { PLATFORMS, PLATFORM_NAMES } from "../../utils/constants.js";
+import { useTranslation } from "react-i18next";
 
 export function History() {
   const {
@@ -12,6 +13,7 @@ export function History() {
     loadHistory: loadHistoryFromContext,
   } = useAppContext();
   const { history, deleteHistoryItem, clearAllHistory } = useDatabase();
+  const { t } = useTranslation();
 
   useEffect(() => {
     loadHistoryFromContext();
@@ -45,10 +47,10 @@ export function History() {
   const handleDeleteHistoryItem = async (id) => {
     const success = await deleteHistoryItem(id);
     if (success) {
-      showToast("Item riwayat berhasil dihapus", "success");
+      showToast(t("history.deleteSuccess"), "success");
       loadHistoryFromContext();
     } else {
-      showToast("Gagal menghapus item riwayat", "error");
+      showToast(t("history.deleteFailed"), "error");
     }
   };
 
@@ -56,10 +58,10 @@ export function History() {
     const success = await clearAllHistory();
     if (success) {
       setConfirmClearDb(false);
-      showToast("Database berhasil dikosongkan", "success");
+      showToast(t("history.clearSuccess"), "success");
       loadHistoryFromContext();
     } else {
-      showToast("Gagal mengosongkan database", "error");
+      showToast(t("history.clearFailed"), "error");
     }
   };
 
@@ -97,20 +99,19 @@ export function History() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-indigo-400 tracking-tight">
-            Riwayat Database SQLite
+            {t("history.title")}
           </h2>
           <p className="text-slate-400 text-sm mt-1">
-            Daftar semua postingan yang berhasil disukai dan tersimpan di
-            database lokal.
+            {t("history.description")}
           </p>
         </div>
 
         <div className="flex gap-3">
           <button
-            onClick={loadHistory}
+            onClick={loadHistoryFromContext}
             className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-all rounded-xl text-xs font-bold text-slate-300 flex items-center gap-2"
           >
-            Refresh Data
+            {t("history.refresh")}
           </button>
 
           <button
@@ -118,7 +119,7 @@ export function History() {
             disabled={history.length === 0}
             className="px-4 py-2 bg-red-600/10 hover:bg-red-600/30 disabled:opacity-40 disabled:hover:bg-red-600/10 border border-red-500/20 hover:border-red-500/30 transition-all rounded-xl text-xs font-bold text-red-400 flex items-center gap-2"
           >
-            Kosongkan Database
+            {t("history.clearHistory")}
           </button>
         </div>
       </div>
@@ -130,27 +131,24 @@ export function History() {
           <div className="flex items-center gap-3">
             <span className="text-xl">⚠️</span>
             <h4 className="text-sm font-bold text-red-300 uppercase tracking-wider">
-              Peringatan: Penghapusan Masal!
+              {t("history.clearWarning")}
             </h4>
           </div>
           <p className="text-xs text-red-400/90 leading-relaxed">
-            Apakah Anda yakin ingin mengosongkan seluruh riwayat database?
-            Tindakan ini akan menghapus semua catatan{" "}
-            <strong>{history.length} postingan</strong> yang telah tersimpan di
-            SQLite secara permanen. Tindakan ini tidak dapat dibatalkan.
+            {t("history.clearConfirm", { count: history.length })}
           </p>
           <div className="flex gap-3 mt-1">
             <button
               onClick={handleClearAllHistory}
               className="px-4.5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold shadow-lg"
             >
-              Ya, Hapus Semua
+              {t("history.confirmDelete")}
             </button>
             <button
               onClick={() => setConfirmClearDb(false)}
               className="px-4.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700/50"
             >
-              Batal
+              {t("history.cancel")}
             </button>
           </div>
         </div>
@@ -177,7 +175,7 @@ export function History() {
           type="text"
           value={historySearch}
           onChange={(e) => setHistorySearch(e.target.value)}
-          placeholder="Cari berdasarkan target profil atau Post ID..."
+          placeholder={t("history.search")}
           className="w-full bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all duration-300 placeholder-slate-700"
         />
       </div>
@@ -189,11 +187,11 @@ export function History() {
             <thead>
               <tr className="bg-slate-950/80 border-b border-slate-800/50 text-[10px] font-bold text-slate-500 tracking-wider uppercase">
                 <th className="px-6 py-4">ID</th>
-                <th className="px-6 py-4">Platform</th>
-                <th className="px-6 py-4">Target Profile</th>
-                <th className="px-6 py-4">Post ID</th>
-                <th className="px-6 py-4">Liked At</th>
-                <th className="px-6 py-4 text-right">Aksi</th>
+                <th className="px-6 py-4">{t("history.platform")}</th>
+                <th className="px-6 py-4">{t("history.targetProfile")}</th>
+                <th className="px-6 py-4">{t("history.postId")}</th>
+                <th className="px-6 py-4">{t("history.likedAt")}</th>
+                <th className="px-6 py-4 text-right">{t("history.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/40">
@@ -204,8 +202,8 @@ export function History() {
                     className="px-6 py-12 text-center text-slate-600 select-none"
                   >
                     {history.length === 0
-                      ? "Database kosong"
-                      : "Tidak ada riwayat database yang cocok"}
+                      ? t("history.noHistory")
+                      : t("history.noMatch")}
                   </td>
                 </tr>
               ) : (

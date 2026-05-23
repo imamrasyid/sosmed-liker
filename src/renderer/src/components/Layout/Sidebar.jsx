@@ -2,16 +2,14 @@ import React from "react";
 import appLogo from "../../app_logo_icon.png";
 import { useAppContext } from "../../context/AppContext.jsx";
 import { useDatabase } from "../../hooks/useDatabase.js";
+import { useTranslation } from "react-i18next";
 
 export function Sidebar() {
   const {
     activeTab,
     selectedPlatform,
-    activeSetupPlatform,
     setActiveTab,
     setSelectedPlatform,
-    setActiveSetupPlatform,
-    setSetupStep,
     expandedGroups,
     setExpandedGroups,
     loadHistory,
@@ -19,42 +17,15 @@ export function Sidebar() {
   } = useAppContext();
 
   const { stats } = useDatabase();
+  const { t } = useTranslation();
 
   const navigationSections = [
     {
-      title: "Pusat Kendali",
+      title: t("sidebar.main"),
       items: [
         {
-          id: "dashboard-group",
-          label: "Dasbor Utama",
-          icon: (
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"
-              />
-            </svg>
-          ),
-          subItems: [
-            {
-              id: "dashboard-main",
-              label: "Ringkasan Dasbor",
-              action: () => {
-                setActiveTab("dashboard");
-              },
-            },
-          ],
-        },
-        {
           id: "campaigns-group",
-          label: "Kampanye Liker",
+          label: t("sidebar.campaigns"),
           icon: (
             <svg
               className="h-4 w-4"
@@ -73,7 +44,7 @@ export function Sidebar() {
           subItems: [
             {
               id: "camp-ig",
-              label: "Instagram Kampanye",
+              label: t("sidebar.instagram"),
               action: () => {
                 setActiveTab("dashboard");
                 setSelectedPlatform("instagram");
@@ -81,7 +52,7 @@ export function Sidebar() {
             },
             {
               id: "camp-tw",
-              label: "Twitter / X Kampanye",
+              label: t("sidebar.twitter"),
               action: () => {
                 setActiveTab("dashboard");
                 setSelectedPlatform("twitter");
@@ -89,7 +60,7 @@ export function Sidebar() {
             },
             {
               id: "camp-th",
-              label: "Threads Kampanye",
+              label: t("sidebar.threads"),
               action: () => {
                 setActiveTab("dashboard");
                 setSelectedPlatform("threads");
@@ -100,11 +71,11 @@ export function Sidebar() {
       ],
     },
     {
-      title: "Manajemen Data",
+      title: t("sidebar.data"),
       items: [
         {
-          id: "credentials-group",
-          label: "Kredensial Sesi",
+          id: "history-group",
+          label: t("sidebar.history"),
           icon: (
             <svg
               className="h-4 w-4"
@@ -116,62 +87,14 @@ export function Sidebar() {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M15 7a2 2 0 012 2m-2 4a2 2 0 012 2m-2-4a2 2 0 11-4 0 2 2 0 014 0zM8 21h8a2 2 0 002-2v-9a2 2 0 00-2-2H8a2 2 0 00-2 2v9a2 2 0 002 2z"
-              />
-            </svg>
-          ),
-          subItems: [
-            {
-              id: "cred-ig",
-              label: "Kuki Instagram",
-              action: () => {
-                setActiveTab("accounts");
-                setActiveSetupPlatform("instagram");
-                setSetupStep(1);
-              },
-            },
-            {
-              id: "cred-tw",
-              label: "Kuki Twitter / X",
-              action: () => {
-                setActiveTab("accounts");
-                setActiveSetupPlatform("twitter");
-                setSetupStep(1);
-              },
-            },
-            {
-              id: "cred-th",
-              label: "Kuki Threads",
-              action: () => {
-                setActiveTab("accounts");
-                setActiveSetupPlatform("threads");
-                setSetupStep(1);
-              },
-            },
-          ],
-        },
-        {
-          id: "database-group",
-          label: "Basis Data SQLite",
-          icon: (
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.58 4 8 4s8-1.79 8-4M4 7c0 2.21 3.58 4 8 4s8-1.79 8-4M4 7c0-2.21 3.58-4 8-4s8 1.79 8 4m0 5c0 2.21-3.58 4-8 4s-8-1.79-8-4"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
           ),
           subItems: [
             {
               id: "history",
-              label: "Tabel Riwayat Liker",
+              label: t("sidebar.likeHistory"),
               action: () => {
                 setActiveTab("history");
                 loadHistory();
@@ -179,14 +102,9 @@ export function Sidebar() {
             },
           ],
         },
-      ],
-    },
-    {
-      title: "Konfigurasi & Analitis",
-      items: [
         {
           id: "analytics-group",
-          label: "Analitis & Statistik",
+          label: t("sidebar.analytics"),
           icon: (
             <svg
               className="h-4 w-4"
@@ -205,7 +123,7 @@ export function Sidebar() {
           subItems: [
             {
               id: "analytics",
-              label: "Ringkasan Laporan",
+              label: t("sidebar.statistics"),
               action: () => {
                 setActiveTab("analytics");
                 loadDbStats();
@@ -213,9 +131,42 @@ export function Sidebar() {
             },
           ],
         },
+      ],
+    },
+    {
+      title: t("sidebar.configuration"),
+      items: [
+        {
+          id: "accounts-group",
+          label: t("sidebar.accounts"),
+          icon: (
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              />
+            </svg>
+          ),
+          subItems: [
+            {
+              id: "accounts",
+              label: t("sidebar.profileStatus"),
+              action: () => {
+                setActiveTab("accounts");
+              },
+            },
+          ],
+        },
         {
           id: "settings-group",
-          label: "Konfigurasi Sistem",
+          label: t("sidebar.settings"),
           icon: (
             <svg
               className="h-4 w-4"
@@ -234,14 +185,14 @@ export function Sidebar() {
           subItems: [
             {
               id: "settings",
-              label: "Parameter Automaton",
+              label: t("sidebar.parameters"),
               action: () => {
                 setActiveTab("settings");
               },
             },
             {
               id: "settings-app",
-              label: "Sistem & Database",
+              label: t("sidebar.system"),
               action: () => {
                 setActiveTab("settings-app");
               },
@@ -253,20 +204,12 @@ export function Sidebar() {
   ];
 
   const isChildActive = (sub, item) => {
-    if (sub.id === "dashboard-main")
-      return activeTab === "dashboard" && selectedPlatform === "instagram";
     if (sub.id === "camp-ig")
       return activeTab === "dashboard" && selectedPlatform === "instagram";
     if (sub.id === "camp-tw")
       return activeTab === "dashboard" && selectedPlatform === "twitter";
     if (sub.id === "camp-th")
       return activeTab === "dashboard" && selectedPlatform === "threads";
-    if (sub.id === "cred-ig")
-      return activeTab === "accounts" && activeSetupPlatform === "instagram";
-    if (sub.id === "cred-tw")
-      return activeTab === "accounts" && activeSetupPlatform === "twitter";
-    if (sub.id === "cred-th")
-      return activeTab === "accounts" && activeSetupPlatform === "threads";
     return activeTab === sub.id;
   };
 

@@ -67,7 +67,7 @@ export async function parseAllCookiesFromFolder(userDataFolder) {
   // Jika tidak ditemukan file kuki sama sekali di kedua folder
   if (uniqueCookieFiles.size === 0) {
     // Buka folder AppData agar mempermudah pengguna
-    shell.openPath(userDataFolder).catch(() => {})
+    shell.openPath(userDataFolder).catch(() => { })
     throw new Error(`[SISTEM] Tidak ditemukan file cookie (.txt) di folder kerja.\nFolder AppData telah dibuka secara otomatis. Silakan masukkan file cookie Netscape Anda ke dalamnya.`)
   }
 
@@ -109,11 +109,60 @@ export async function parseAllCookiesFromFolder(userDataFolder) {
   return cookies
 }
 
-export async function launchBrowserWithCookies(cookieFolderPath, headless = false, userAgentName = 'Default') {
-  const cookies = await parseAllCookiesFromFolder(cookieFolderPath)
-  
+export async function launchBrowserWithCookies(cookieFolderPath, headless = false, userAgentName = 'Default', profile = null, proxy = null) {
+  let cookies = []
+
+  // Use profile cookies if provided, otherwise parse from folder
+  if (profile && profile.cookie_content) {
+    // Parse cookies from profile content
+    const content = profile.cookie_content
+    const lines = content.split('\n')
+
+    for (let line of lines) {
+      line = line.trim()
+      if (line === '') {
+        continue
+      }
+
+      let isHttpOnly = false
+      if (line.startsWith('#HttpOnly_')) {
+        isHttpOnly = true
+        line = line.substring(10)
+      } else if (line.startsWith('#')) {
+        continue
+      }
+
+      const parts = line.split('\t')
+      if (parts.length === 7) {
+        cookies.push({
+          domain: parts[0],
+          path: parts[2],
+          secure: parts[3] === 'TRUE',
+          expires: parseInt(parts[4], 10) === 0 ? -1 : parseInt(parts[4], 10),
+          name: parts[5],
+          value: parts[6].replace('\r', ''),
+          httpOnly: isHttpOnly
+        })
+      }
+    }
+  } else {
+    // Fallback to folder-based cookie parsing
+    cookies = await parseAllCookiesFromFolder(cookieFolderPath)
+  }
+
+  // Build proxy server string if proxy is provided
+  let proxyServer = null
+  if (proxy) {
+    const { proxy_type, host, port, username, password } = proxy
+    if (proxy_type === 'socks5') {
+      proxyServer = `socks5://${username && password ? `${username}:${password}@` : ''}${host}:${port}`
+    } else {
+      proxyServer = `http://${username && password ? `${username}:${password}@` : ''}${host}:${port}`
+    }
+  }
+
   let browser;
-  
+
   // Algoritma self-healing untuk menggunakan browser bawaan komputer pengguna (Chrome / Edge)
   // Ini menghindari keharusan menyertakan binary browser >150MB di dalam installer berkas setup.
   try {
@@ -121,7 +170,8 @@ export async function launchBrowserWithCookies(cookieFolderPath, headless = fals
     browser = await chromium.launch({
       headless: headless,
       channel: 'chrome',
-      args: ['--disable-blink-features=AutomationControlled']
+      args: ['--disable-blink-features=AutomationControlled'],
+      proxy: proxyServer ? { server: proxyServer } : undefined
     })
   } catch (err) {
     try {
@@ -129,17 +179,19 @@ export async function launchBrowserWithCookies(cookieFolderPath, headless = fals
       browser = await chromium.launch({
         headless: headless,
         channel: 'msedge',
-        args: ['--disable-blink-features=AutomationControlled']
+        args: ['--disable-blink-features=AutomationControlled'],
+        proxy: proxyServer ? { server: proxyServer } : undefined
       })
     } catch (err2) {
       // 3. Fallback terakhir jika keduanya tidak terdeteksi, gunakan Playwright Chromium bawaan
       browser = await chromium.launch({
         headless: headless,
-        args: ['--disable-blink-features=AutomationControlled']
+        args: ['--disable-blink-features=AutomationControlled'],
+        proxy: proxyServer ? { server: proxyServer } : undefined
       })
     }
   }
-  
+
   let uaString = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   if (userAgentName === 'Chrome Windows') {
     uaString = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
@@ -148,13 +200,13 @@ export async function launchBrowserWithCookies(cookieFolderPath, headless = fals
   } else if (userAgentName === 'Firefox Linux') {
     uaString = 'Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0'
   }
-  
+
   const context = await browser.newContext({
     viewport: { width: 1280, height: 720 },
     userAgent: uaString
   })
-  
+
   await context.addCookies(cookies)
-  
+
   return { browser, context }
 }

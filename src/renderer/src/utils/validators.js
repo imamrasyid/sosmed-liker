@@ -18,9 +18,9 @@ export function isValidUrl(url) {
  */
 export function detectPlatformFromUrl(url) {
   if (!url) return PLATFORMS.INSTAGRAM
-  
+
   const lowerUrl = url.toLowerCase()
-  
+
   if (lowerUrl.includes('instagram.com')) {
     return PLATFORMS.INSTAGRAM
   } else if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) {
@@ -28,7 +28,7 @@ export function detectPlatformFromUrl(url) {
   } else if (lowerUrl.includes('threads.net') || lowerUrl.includes('threads.com')) {
     return PLATFORMS.THREADS
   }
-  
+
   return PLATFORMS.INSTAGRAM
 }
 
@@ -44,20 +44,20 @@ export function getPlatformPlaceholder(platform) {
  */
 export function isValidCookieFormat(cookieContent) {
   if (!cookieContent || typeof cookieContent !== 'string') return false
-  
+
   const lines = cookieContent.split('\n')
   let validLines = 0
-  
+
   for (const line of lines) {
     const trimmed = line.trim()
     if (trimmed === '' || trimmed.startsWith('#')) continue
-    
+
     const parts = trimmed.split('\t')
     if (parts.length === 7) {
       validLines++
     }
   }
-  
+
   return validLines > 0
 }
 
@@ -66,7 +66,7 @@ export function isValidCookieFormat(cookieContent) {
  */
 export function sanitizeCookieContent(cookieContent) {
   if (!cookieContent) return ''
-  
+
   return cookieContent
     .split('\n')
     .map(line => line.trim())
@@ -78,23 +78,24 @@ export function sanitizeCookieContent(cookieContent) {
  * Validate configuration value
  */
 export function validateConfigValue(key, value) {
-  const numValue = parseInt(value, 10)
-  
+  // Convert to number if it's a string, otherwise use as-is
+  const numValue = typeof value === 'string' ? parseInt(value, 10) : value
+
   switch (key) {
     case 'min_delay':
-      return !isNaN(numValue) && numValue >= 1000 && numValue <= 60000
+      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 1000 && numValue <= 60000
     case 'max_delay':
-      return !isNaN(numValue) && numValue >= 2000 && numValue <= 120000
+      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 2000 && numValue <= 120000
     case 'limit':
-      return !isNaN(numValue) && numValue >= 1 && numValue <= 1000
+      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 1 && numValue <= 1000
     case 'consecutive_skips_limit':
-      return !isNaN(numValue) && numValue >= 1 && numValue <= 100
+      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 1 && numValue <= 100
     case 'scroll_step':
-      return !isNaN(numValue) && numValue >= 100 && numValue <= 5000
+      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 100 && numValue <= 5000
     case 'max_scroll_attempts':
-      return !isNaN(numValue) && numValue >= 5 && numValue <= 100
+      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 5 && numValue <= 100
     case 'headless':
-      return value === 'true' || value === 'false'
+      return value === 'true' || value === 'false' || value === true || value === false
     case 'browser_user_agent':
       return ['Default', 'Chrome Windows', 'Safari macOS', 'Firefox Linux'].includes(value)
     default:
@@ -123,7 +124,7 @@ export function sanitizeInput(input) {
  */
 export function isValidFileExtension(filename, allowedExtensions) {
   if (!filename || !allowedExtensions || !Array.isArray(allowedExtensions)) return false
-  
+
   const extension = filename.toLowerCase().slice(filename.lastIndexOf('.'))
   return allowedExtensions.includes(extension)
 }

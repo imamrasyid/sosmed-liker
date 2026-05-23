@@ -53,8 +53,20 @@ export function useConfig() {
     setError(null)
     try {
       await window.api.saveConfig(key, value.toString())
-      // Update local state
-      setConfig(prev => ({ ...prev, [key]: value }))
+      // Map snake_case key to camelCase for state update
+      const keyMapping = {
+        'min_delay': 'minDelay',
+        'max_delay': 'maxDelay',
+        'limit': 'limit',
+        'headless': 'headless',
+        'consecutive_skips_limit': 'consecutiveSkipsLimit',
+        'scroll_step': 'scrollStep',
+        'max_scroll_attempts': 'maxScrollAttempts',
+        'browser_user_agent': 'userAgent'
+      }
+      const stateKey = keyMapping[key] || key
+      // Update local state with correct key
+      setConfig(prev => ({ ...prev, [stateKey]: value }))
       return true
     } catch (err) {
       console.error('Failed to save config:', err)
