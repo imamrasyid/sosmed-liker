@@ -3,8 +3,96 @@ import { useAppContext } from "../../context/AppContext.jsx";
 import { useAutomation } from "../../hooks/useAutomation.js";
 import { useConfig } from "../../hooks/useConfig.js";
 import { PLATFORMS, PLATFORM_NAMES, LOG_TYPES } from "../../utils/constants.js";
-import { getPlatformPlaceholder } from "../../utils/validators.js";
 import { useTranslation } from "react-i18next";
+
+const PLATFORM_META = {
+  [PLATFORMS.INSTAGRAM]: {
+    color: "from-pink-600 to-rose-500",
+    border: "border-pink-500/30",
+    ring: "ring-pink-500/20",
+    badge: "bg-pink-500/10 text-pink-300 border-pink-500/20",
+    dot: "bg-pink-400",
+    placeholder: "https://www.instagram.com/username",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+      </svg>
+    ),
+  },
+  [PLATFORMS.TWITTER]: {
+    color: "from-slate-700 to-slate-900",
+    border: "border-slate-600/30",
+    ring: "ring-slate-500/20",
+    badge: "bg-slate-500/10 text-slate-300 border-slate-500/20",
+    dot: "bg-slate-400",
+    placeholder: "https://x.com/username",
+    icon: (
+      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+      </svg>
+    ),
+  },
+  [PLATFORMS.THREADS]: {
+    color: "from-zinc-700 to-zinc-900",
+    border: "border-zinc-600/30",
+    ring: "ring-zinc-500/20",
+    badge: "bg-zinc-500/10 text-zinc-300 border-zinc-500/20",
+    dot: "bg-zinc-400",
+    placeholder: "https://www.threads.net/@username",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path d="M16 12a4 4 0 1 0-8 0 4 4 0 0 0 8 0zm0 0v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-9 9m4.5-1.206a8.959 8.959 0 0 1-4.5 1.206" />
+      </svg>
+    ),
+  },
+};
+
+const LOG_STYLE = {
+  SUKSES: {
+    pill: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    text: "text-emerald-400",
+    icon: "✓",
+  },
+  SKIP: {
+    pill: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    text: "text-amber-400",
+    icon: "→",
+  },
+  ERROR: {
+    pill: "bg-red-500/10 text-red-400 border-red-500/20",
+    text: "text-red-400",
+    icon: "✕",
+  },
+  ACTION: {
+    pill: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+    text: "text-sky-300",
+    icon: "⚡",
+  },
+  SYSTEM: {
+    pill: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20",
+    text: "text-indigo-300/80 italic",
+    icon: "●",
+  },
+  default: {
+    pill: "bg-white/5 text-slate-400 border-white/10",
+    text: "text-slate-400",
+    icon: "·",
+  },
+};
 
 export function Dashboard() {
   const {
@@ -14,10 +102,8 @@ export function Dashboard() {
     checkAllCookiesStatus,
     showToast,
     setActiveTab,
-    setSetupStep,
-    setActiveSetupPlatform,
+    setSettingsSubTab,
   } = useAppContext();
-
   const { isRunning, logs, handleStart, handleStop, clearLogs } =
     useAutomation();
   const { config } = useConfig();
@@ -27,300 +113,90 @@ export function Dashboard() {
   const [logSearch, setLogSearch] = useState("");
   const [logFilter, setLogFilter] = useState(LOG_TYPES.ALL);
   const [autoScroll, setAutoScroll] = useState(true);
-  const logContainerRef = useRef(null);
+  const logRef = useRef(null);
+
+  const meta = PLATFORM_META[selectedPlatform];
+  const hasCookie = cookiesStatus[selectedPlatform];
 
   const handleUrlChange = (val) => {
     setTargetUrl(val);
-    const lower = val.toLowerCase();
-    if (lower.includes("instagram.com")) {
-      setSelectedPlatform(PLATFORMS.INSTAGRAM);
-    } else if (lower.includes("twitter.com") || lower.includes("x.com")) {
+    const l = val.toLowerCase();
+    if (l.includes("instagram.com")) setSelectedPlatform(PLATFORMS.INSTAGRAM);
+    else if (l.includes("twitter.com") || l.includes("x.com"))
       setSelectedPlatform(PLATFORMS.TWITTER);
-    } else if (lower.includes("threads.net") || lower.includes("threads.com")) {
+    else if (l.includes("threads.net") || l.includes("threads.com"))
       setSelectedPlatform(PLATFORMS.THREADS);
-    }
-  };
-
-  const handleDownloadLogs = () => {
-    const textContent = logs
-      .map((l) => `[${l.time || "SYSTEM"}] [${l.type}] ${l.message}`)
-      .join("\n");
-    const blob = new Blob([textContent], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `liker_logs_${new Date().toISOString().slice(0, 10)}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const filteredLogs = logs.filter((log) => {
-    const matchesSearch = log.message
-      .toLowerCase()
-      .includes(logSearch.toLowerCase());
-    if (logFilter === LOG_TYPES.ALL) return matchesSearch;
-    return log.type === logFilter && matchesSearch;
+    const match = log.message.toLowerCase().includes(logSearch.toLowerCase());
+    return logFilter === LOG_TYPES.ALL
+      ? match
+      : log.type === logFilter && match;
   });
 
   useEffect(() => {
-    if (autoScroll && logContainerRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    if (autoScroll && logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [logs, autoScroll]);
 
-  const platforms = [
-    {
-      id: PLATFORMS.INSTAGRAM,
-      name: PLATFORM_NAMES[PLATFORMS.INSTAGRAM],
-      activeBg:
-        "bg-gradient-to-r from-pink-600/80 to-rose-600/80 border-pink-500/30",
-      activeGlow: "shadow-pink-500/25",
-      icon: (
-        <svg
-          className="w-4.5 h-4.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth="2.5"
-        >
-          <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-          <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-        </svg>
-      ),
-    },
-    {
-      id: PLATFORMS.TWITTER,
-      name: PLATFORM_NAMES[PLATFORMS.TWITTER],
-      activeBg:
-        "bg-gradient-to-r from-slate-850 to-slate-950 border-slate-700/50",
-      activeGlow: "shadow-slate-500/25",
-      icon: (
-        <svg className="w-4.5 h-4.5" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-        </svg>
-      ),
-    },
-    {
-      id: PLATFORMS.THREADS,
-      name: PLATFORM_NAMES[PLATFORMS.THREADS],
-      activeBg:
-        "bg-gradient-to-r from-zinc-800 to-stone-900 border-zinc-700/50",
-      activeGlow: "shadow-zinc-500/25",
-      icon: (
-        <svg
-          className="w-4.5 h-4.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth="2.5"
-        >
-          <path d="M16 12a4 4 0 1 0-8 0 4 4 0 0 0 8 0zm0 0v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-9 9m4.5-1.206a8.959 8.959 0 0 1-4.5 1.206" />
-        </svg>
-      ),
-    },
-  ];
-
-  const getLogIcon = (type) => {
-    switch (type) {
-      case "SUKSES":
-        return "✅";
-      case "SKIP":
-        return "⏭️";
-      case "ERROR":
-        return "🚨";
-      case "ACTION":
-        return "⚙️";
-      case "SYSTEM":
-        return "🤖";
-      default:
-        return "ℹ️";
-    }
-  };
-
-  const getLogStyles = (type) => {
-    switch (type) {
-      case "SUKSES":
-        return {
-          colorClass:
-            "text-emerald-400 font-bold shadow-glow-sm shadow-emerald-400/5",
-          pillClass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-        };
-      case "SKIP":
-        return {
-          colorClass: "text-amber-400 font-medium",
-          pillClass: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-        };
-      case "ERROR":
-        return {
-          colorClass:
-            "text-rose-400 font-bold shadow-glow-sm shadow-rose-400/5",
-          pillClass:
-            "bg-rose-500/10 text-rose-400 border-rose-500/20 animate-pulse",
-        };
-      case "ACTION":
-        return {
-          colorClass: "text-sky-300",
-          pillClass: "bg-sky-500/10 text-sky-400 border-sky-500/20",
-        };
-      case "SYSTEM":
-        return {
-          colorClass: "text-indigo-300/90 italic",
-          pillClass: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20",
-        };
-      default:
-        return {
-          colorClass: "text-slate-300",
-          pillClass: "bg-slate-800 text-slate-400 border-slate-700",
-        };
-    }
+  const handleDownloadLogs = () => {
+    const text = logs
+      .map((l) => `[${l.time ?? "SYSTEM"}] [${l.type}] ${l.message}`)
+      .join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+    a.download = `liker_logs_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
   };
 
   return (
-    <div className="flex-1 flex flex-col gap-6 max-w-6xl mx-auto w-full">
-      {/* Dynamic Header */}
-      <div>
-        <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-indigo-400 tracking-tight">
-          {t("dashboard.title")}
-        </h2>
-        <p className="text-slate-400 text-sm mt-1">
-          {t("dashboard.description")}
-        </p>
-      </div>
-
-      {/* PLATFORM SELECTOR TAB BAR */}
-      <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-2.5 flex flex-wrap gap-2.5 shadow-xl relative z-10">
-        {platforms.map((platform) => (
-          <button
-            key={platform.id}
-            disabled={isRunning}
-            onClick={() => setSelectedPlatform(platform.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 relative group border select-none
-              ${
-                selectedPlatform === platform.id
-                  ? `${platform.activeBg} text-white shadow-lg ${platform.activeGlow}`
-                  : "bg-slate-950/40 text-slate-400 hover:text-slate-200 border-slate-900/60 hover:bg-slate-800/20 disabled:opacity-40 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-              }
-            `}
-          >
-            {platform.icon}
-            <span>{platform.name}</span>
-            {selectedPlatform === platform.id && (
-              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-[3px] rounded-full bg-white/80 animate-pulse"></span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Control Panel Grid */}
-      <div className="grid grid-cols-3 gap-6">
-        {/* Input Card Container (Spans 2 columns) */}
-        <div className="col-span-2 bg-slate-900/40 backdrop-blur-md rounded-2xl p-6 border border-slate-800/80 flex flex-col justify-between gap-5 relative overflow-hidden shadow-xl">
-          {/* Decorative glowing gradient radial block */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
-
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-between items-center">
-              <label className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <span>
-                  {t("dashboard.targetUrl")} {PLATFORM_NAMES[selectedPlatform]}
-                </span>
-              </label>
-              <span
-                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border select-none uppercase
-                ${selectedPlatform === PLATFORMS.INSTAGRAM ? "text-pink-400 bg-pink-500/10 border-pink-500/20" : ""}
-                ${selectedPlatform === PLATFORMS.TWITTER ? "text-slate-300 bg-slate-500/10 border-slate-500/20" : ""}
-                ${selectedPlatform === PLATFORMS.THREADS ? "text-zinc-400 bg-zinc-500/10 border-zinc-500/20" : ""}
-              `}
-              >
-                {PLATFORM_NAMES[selectedPlatform]} {t("dashboard.platform")}
-              </span>
-            </div>
-
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                  />
-                </svg>
-              </div>
-              <input
-                type="url"
-                value={targetUrl}
-                onChange={(e) => handleUrlChange(e.target.value)}
+    <div className="flex-1 flex flex-col gap-5 max-w-5xl mx-auto w-full">
+      {/* ── Page header ──────────────────────────────────── */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-black text-white">
+            {t("dashboard.title")}
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {t("dashboard.description")}
+          </p>
+        </div>
+        {/* Platform tabs */}
+        <div className="flex items-center gap-1 bg-white/[0.04] border border-white/[0.06] rounded-xl p-1">
+          {Object.values(PLATFORMS).map((p) => {
+            const m = PLATFORM_META[p];
+            const active = selectedPlatform === p;
+            return (
+              <button
+                key={p}
                 disabled={isRunning}
-                placeholder={getPlatformPlaceholder(selectedPlatform)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-11 pr-4 py-3.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all duration-300 disabled:opacity-50 font-medium placeholder-slate-600"
-              />
-            </div>
-          </div>
-
-          {/* Cookie Status Indicator & Check Button */}
-          <div className="flex items-center justify-between p-3.5 rounded-xl border bg-slate-950/50 mt-2 mb-1 border-slate-800/80">
-            <div className="flex items-center gap-3">
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${cookiesStatus[selectedPlatform] ? "bg-emerald-500 shadow-glow shadow-emerald-500/50" : "bg-rose-500 shadow-glow shadow-rose-500/50"}`}
-              ></span>
-              <div>
-                <span className="text-xs font-bold text-slate-200 block">
-                  {t("dashboard.cookieStatus")}:{" "}
-                  <span
-                    className={
-                      cookiesStatus[selectedPlatform]
-                        ? "text-emerald-400"
-                        : "text-rose-400"
-                    }
-                  >
-                    {cookiesStatus[selectedPlatform]
-                      ? t("dashboard.cookieValid")
-                      : t("dashboard.cookieNotConfigured")}
-                  </span>
-                </span>
-                <span className="text-[10px] text-slate-500 block">
-                  {t("dashboard.cookieHint")}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={async () => {
-                await checkAllCookiesStatus();
-                if (cookiesStatus[selectedPlatform]) {
-                  showToast(
-                    `Sistem mendeteksi kuki ${selectedPlatform} valid dan siap digunakan!`,
-                    "success",
-                  );
-                } else {
-                  showToast(
-                    `Kuki ${selectedPlatform} tidak ditemukan. Mengalihkan ke halaman konfigurasi...`,
-                    "error",
-                  );
-                  setActiveTab("accounts");
-                  setSetupStep(1);
-                  setActiveSetupPlatform(selectedPlatform);
-                }
-              }}
-              className={`px-4 py-2 rounded-lg text-[11px] font-bold transition-all duration-300 border flex items-center gap-1.5
+                onClick={() => setSelectedPlatform(p)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-150 disabled:opacity-40 border
                   ${
-                    cookiesStatus[selectedPlatform]
-                      ? "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
-                      : "bg-rose-600/20 border-rose-500/30 text-rose-400 hover:bg-rose-600/30"
-                  }
-                `}
-            >
+                    active
+                      ? `bg-gradient-to-r ${m.color} text-white border-white/10 shadow-sm`
+                      : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-white/[0.04]"
+                  }`}
+              >
+                {m.icon}
+                {PLATFORM_NAMES[p]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Main grid ────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* ── Left: control panel (col-span-2) ─────────── */}
+        <div className="col-span-2 flex flex-col gap-3">
+          {/* Cookie status banner */}
+          {!hasCookie && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-amber-500/8 border border-amber-500/20 rounded-xl">
               <svg
-                className="w-3.5 h-3.5"
+                className="w-4 h-4 text-amber-400 shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -329,36 +205,73 @@ export function Dashboard() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                 />
               </svg>
-              {cookiesStatus[selectedPlatform]
-                ? t("dashboard.checkCookie")
-                : t("dashboard.checkCookie")}
-            </button>
+              <p className="text-xs text-amber-300 flex-1">
+                Akun <strong>{PLATFORM_NAMES[selectedPlatform]}</strong> belum
+                dikonfigurasi. Tambahkan cookie profil sebelum menjalankan
+                otomatisasi.
+              </p>
+              <button
+                onClick={() => {
+                  setActiveTab("settings");
+                  setSettingsSubTab("profiles");
+                }}
+                className="text-[10px] font-bold text-amber-400 border border-amber-500/30 rounded-lg px-2.5 py-1 hover:bg-amber-500/10 transition-all shrink-0"
+              >
+                Konfigurasi →
+              </button>
+            </div>
+          )}
+
+          {/* URL input card */}
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">
+              {t("dashboard.targetUrl")} — {PLATFORM_NAMES[selectedPlatform]}
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <span className={`${meta.dot}`}>
+                  {meta.icon && (
+                    <span className="text-current opacity-60">{meta.icon}</span>
+                  )}
+                </span>
+              </div>
+              <input
+                type="url"
+                value={targetUrl}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                disabled={isRunning}
+                placeholder={meta.placeholder}
+                className="w-full bg-[#0c1220] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all disabled:opacity-40"
+              />
+            </div>
+            <p className="text-[10px] text-slate-600 mt-2">
+              {t("dashboard.cookieHint")}
+            </p>
           </div>
 
-          <div className="flex gap-4">
+          {/* Action buttons */}
+          <div className="flex gap-3">
             <button
               onClick={() =>
                 handleStart(targetUrl, selectedPlatform, cookiesStatus)
               }
-              disabled={isRunning || !targetUrl}
-              className={`flex-1 py-3.5 px-6 rounded-xl font-bold text-sm text-white transition-all duration-300 shadow-xl flex justify-center items-center gap-2.5 border
+              disabled={isRunning || !targetUrl || !hasCookie}
+              className={`flex-1 py-3 px-5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 border
                 ${
-                  isRunning || !targetUrl
-                    ? "bg-slate-800/40 border-slate-700/50 text-slate-500 cursor-not-allowed shadow-none"
-                    : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 border-indigo-400/20 hover:shadow-indigo-500/20 active:scale-[0.98]"
-                }
-              `}
+                  isRunning || !targetUrl || !hasCookie
+                    ? "bg-white/[0.03] border-white/[0.06] text-slate-600 cursor-not-allowed"
+                    : "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white border-indigo-400/20 shadow-lg shadow-indigo-500/20 active:scale-[0.98]"
+                }`}
             >
               {isRunning ? (
                 <>
                   <svg
-                    className="animate-spin h-5 w-5 text-white"
-                    viewBox="0 0 24 24"
+                    className="animate-spin w-4 h-4"
                     fill="none"
-                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
                     <circle
                       className="opacity-25"
@@ -367,21 +280,21 @@ export function Dashboard() {
                       r="10"
                       stroke="currentColor"
                       strokeWidth="4"
-                    ></circle>
+                    />
                     <path
                       className="opacity-75"
                       fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
                   </svg>
-                  <span>{t("dashboard.automationRunning")}</span>
+                  {t("dashboard.automationRunning")}
                 </>
               ) : (
                 <>
                   <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
+                    className="w-4 h-4"
                     fill="none"
+                    viewBox="0 0 24 24"
                     stroke="currentColor"
                     strokeWidth="2"
                   >
@@ -396,200 +309,228 @@ export function Dashboard() {
                       d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <span>{t("dashboard.startAutomation")}</span>
+                  {t("dashboard.startAutomation")}
                 </>
               )}
             </button>
 
-            {isRunning && (
+            {isRunning ? (
               <button
                 onClick={handleStop}
-                className="py-3.5 px-6 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 transition-all duration-300 border border-red-500/20 hover:shadow-red-500/25 shadow-xl active:scale-[0.98]"
+                className="py-3 px-5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 border border-red-500/20 shadow-lg shadow-red-500/15 active:scale-[0.98] transition-all"
               >
                 {t("dashboard.stopAutomation")}
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  await checkAllCookiesStatus();
+                  showToast(
+                    hasCookie
+                      ? `Cookie ${PLATFORM_NAMES[selectedPlatform]} valid ✓`
+                      : `Cookie ${PLATFORM_NAMES[selectedPlatform]} tidak ditemukan`,
+                    hasCookie ? "success" : "error",
+                  );
+                }}
+                className="py-3 px-4 rounded-xl text-[11px] font-bold text-slate-400 border border-white/[0.06] hover:bg-white/[0.04] hover:text-slate-300 transition-all"
+              >
+                Cek Cookie
               </button>
             )}
           </div>
         </div>
 
-        {/* Right Quick Info Card */}
-        <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl p-6 border border-slate-800/80 flex flex-col justify-between gap-4 relative overflow-hidden shadow-xl">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl pointer-events-none"></div>
-
-          <span className="text-[10px] font-bold text-slate-500 tracking-widest uppercase">
-            {t("dashboard.configInfo")}
-          </span>
-
-          <div className="flex-1 flex flex-col justify-center gap-3">
-            <div className="flex justify-between items-center border-b border-slate-800/50 pb-2">
-              <span className="text-xs text-slate-400 font-medium">
-                {t("dashboard.headlessMode")}
-              </span>
-              <span
-                className={`text-xs font-bold ${config.headless ? "text-amber-400" : "text-indigo-400"}`}
-              >
-                {config.headless
-                  ? t("dashboard.headlessActive")
-                  : t("dashboard.headlessInactive")}
-              </span>
-            </div>
-            <div className="flex justify-between items-center border-b border-slate-800/50 pb-2">
-              <span className="text-xs text-slate-400 font-medium">
-                {t("dashboard.postLimit")}
-              </span>
-              <span className="text-xs font-bold text-slate-200">
-                {config.limit} {t("dashboard.post")}
-              </span>
-            </div>
-            <div className="flex justify-between items-center pb-1">
-              <span className="text-xs text-slate-400 font-medium">
-                {t("dashboard.delayRange")}
-              </span>
-              <span className="text-xs font-bold text-slate-200">
-                {config.minDelay / 1000}s - {config.maxDelay / 1000}s
-              </span>
-            </div>
+        {/* ── Right: config summary ─────────────────────── */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+              {t("dashboard.configInfo")}
+            </p>
+            <button
+              onClick={() => setActiveTab("settings")}
+              className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              Edit →
+            </button>
           </div>
 
-          <button
-            onClick={() => setActiveTab("settings")}
-            className="w-full text-center py-2 bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/40 hover:border-slate-700 transition-all rounded-xl text-xs font-bold text-slate-300"
-          >
-            {t("dashboard.changeSettings")}
-          </button>
+          <div className="space-y-2 flex-1">
+            {[
+              {
+                label: t("dashboard.headlessMode"),
+                value: config.headless ? "Aktif (Silent)" : "Nonaktif",
+                valueColor: config.headless
+                  ? "text-amber-400"
+                  : "text-slate-300",
+              },
+              {
+                label: t("dashboard.postLimit"),
+                value: `${config.limit} post`,
+                valueColor: "text-slate-300",
+              },
+              {
+                label: t("dashboard.delayRange"),
+                value: `${config.minDelay / 1000}s – ${config.maxDelay / 1000}s`,
+                valueColor: "text-slate-300",
+              },
+              {
+                label: "User Agent",
+                value: config.userAgent || "Default",
+                valueColor: "text-slate-400",
+              },
+            ].map((row) => (
+              <div
+                key={row.label}
+                className="flex justify-between items-center py-1.5 border-b border-white/[0.04] last:border-0"
+              >
+                <span className="text-[11px] text-slate-500">{row.label}</span>
+                <span className={`text-[11px] font-bold ${row.valueColor}`}>
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Cookie status per platform */}
+          <div className="pt-2 border-t border-white/[0.04] space-y-1.5">
+            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+              Status Akun
+            </p>
+            {Object.values(PLATFORMS).map((p) => (
+              <div key={p} className="flex items-center gap-2">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${cookiesStatus[p] ? "bg-emerald-500" : "bg-slate-700"}`}
+                />
+                <span className="text-[11px] text-slate-500 flex-1">
+                  {PLATFORM_NAMES[p]}
+                </span>
+                <span
+                  className={`text-[9px] font-bold ${cookiesStatus[p] ? "text-emerald-500" : "text-slate-700"}`}
+                >
+                  {cookiesStatus[p] ? "READY" : "—"}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* System Log Activity 2.0 */}
-      <section className="bg-slate-900/40 backdrop-blur-md rounded-2xl p-6 border border-slate-800/80 flex-1 flex flex-col min-h-[350px] shadow-xl relative overflow-hidden">
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/2 rounded-full blur-3xl pointer-events-none"></div>
+      {/* ── Activity Log ─────────────────────────────────── */}
+      <div className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-2xl flex flex-col min-h-0 overflow-hidden">
+        {/* Log toolbar */}
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.06] shrink-0">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mr-1">
+            {t("dashboard.logHeader")}
+          </span>
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${isRunning ? "bg-emerald-400 animate-pulse" : "bg-slate-700"}`}
+          />
 
-        {/* Log Header Controls */}
-        <div className="flex flex-col gap-4 mb-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <span>{t("dashboard.logHeader")}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-            </h3>
-
-            <div className="flex gap-2">
+          {/* Filters */}
+          <div className="flex gap-0.5 ml-2">
+            {[
+              LOG_TYPES.ALL,
+              LOG_TYPES.SUKSES,
+              LOG_TYPES.ERROR,
+              LOG_TYPES.SKIP,
+              LOG_TYPES.SYSTEM,
+            ].map((f) => (
               <button
-                onClick={clearLogs}
-                className="p-1.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg text-slate-400 hover:text-slate-200 transition-all text-xs font-semibold flex items-center gap-1.5"
-                title={t("dashboard.clearLogsTooltip")}
+                key={f}
+                onClick={() => setLogFilter(f)}
+                className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase transition-all ${
+                  logFilter === f
+                    ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/30"
+                    : "text-slate-600 hover:text-slate-400 border border-transparent"
+                }`}
               >
-                {t("dashboard.clearLogs")}
+                {f}
               </button>
-
-              <button
-                onClick={handleDownloadLogs}
-                disabled={logs.length === 0}
-                className="p-1.5 bg-slate-800/50 hover:bg-indigo-600/30 hover:text-indigo-200 disabled:opacity-40 disabled:hover:bg-slate-800/50 disabled:hover:text-slate-400 border border-slate-700/50 rounded-lg text-slate-400 hover:text-slate-200 transition-all text-xs font-semibold flex items-center gap-1.5"
-                title={t("dashboard.downloadLogsTooltip")}
-              >
-                {t("dashboard.downloadLogs")}
-              </button>
-            </div>
+            ))}
           </div>
 
-          {/* Log Filter & Search Toolbar */}
-          <div className="flex gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500 font-bold px-2 uppercase">
-                {t("dashboard.filterAll")}:
-              </span>
-              {Object.values(LOG_TYPES)
-                .filter((t) => t !== LOG_TYPES.ACTION)
-                .map((filterOption) => (
-                  <button
-                    key={filterOption}
-                    onClick={() => setLogFilter(filterOption)}
-                    className={`text-[10px] font-bold px-2.5 py-1 rounded-md transition-all uppercase border
-                    ${
-                      logFilter === filterOption
-                        ? "bg-indigo-600/20 text-indigo-300 border-indigo-500/30"
-                        : "bg-transparent text-slate-400 hover:text-slate-200 border-transparent"
-                    }
-                  `}
-                  >
-                    {filterOption}
-                  </button>
-                ))}
-            </div>
-
-            <div className="flex-1 relative">
-              <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-600">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-              </div>
-              <input
-                type="text"
-                value={logSearch}
-                onChange={(e) => setLogSearch(e.target.value)}
-                placeholder={t("dashboard.searchLogs")}
-                className="w-full bg-slate-900/50 border border-slate-800/80 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-300 focus:outline-none focus:border-slate-700 transition-all duration-300 placeholder-slate-700"
-              />
-            </div>
-
-            <button
-              onClick={() => setAutoScroll(!autoScroll)}
-              className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all uppercase flex items-center gap-1.5
-                ${
-                  autoScroll
-                    ? "bg-emerald-600/10 text-emerald-400 border-emerald-500/20"
-                    : "bg-slate-900 text-slate-400 border-slate-800"
-                }
-              `}
+          {/* Search */}
+          <div className="flex-1 relative ml-1">
+            <svg
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2.5"
             >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${autoScroll ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`}
-              ></span>
-              {t("dashboard.autoScroll")}: {autoScroll ? "ON" : "OFF"}
-            </button>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              value={logSearch}
+              onChange={(e) => setLogSearch(e.target.value)}
+              placeholder="Cari log..."
+              className="w-full bg-[#0c1220] border border-white/[0.06] rounded-lg pl-7 pr-3 py-1 text-[11px] text-slate-300 placeholder-slate-700 focus:outline-none focus:border-indigo-500/40 transition-all"
+            />
           </div>
+
+          {/* Auto scroll toggle */}
+          <button
+            onClick={() => setAutoScroll((v) => !v)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold border transition-all ${
+              autoScroll
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                : "text-slate-600 border-white/[0.06]"
+            }`}
+          >
+            <span
+              className={`w-1 h-1 rounded-full ${autoScroll ? "bg-emerald-400 animate-pulse" : "bg-slate-600"}`}
+            />
+            Scroll
+          </button>
+
+          {/* Utilities */}
+          <button
+            onClick={clearLogs}
+            className="text-[9px] font-bold text-slate-600 hover:text-slate-400 px-2 py-1 border border-transparent hover:border-white/[0.06] rounded-lg transition-all"
+          >
+            Hapus
+          </button>
+          <button
+            onClick={handleDownloadLogs}
+            disabled={!logs.length}
+            className="text-[9px] font-bold text-slate-600 hover:text-slate-400 disabled:opacity-30 px-2 py-1 border border-transparent hover:border-white/[0.06] rounded-lg transition-all"
+          >
+            Unduh
+          </button>
         </div>
 
-        {/* Log Outputs Terminal */}
+        {/* Log output */}
         <div
-          ref={logContainerRef}
-          className="flex-1 bg-slate-950/80 rounded-xl border border-slate-800/80 p-4.5 font-mono text-[12px] text-slate-300 overflow-y-auto space-y-2 max-h-[300px] shadow-inner"
+          ref={logRef}
+          className="flex-1 overflow-y-auto p-3 space-y-0.5 font-mono text-[11px] min-h-[200px] max-h-[340px]"
         >
           {filteredLogs.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-slate-600 select-none">
-              {t("dashboard.noLogs")} {logSearch && t("dashboard.noLogsMatch")}
+            <div className="h-full flex items-center justify-center text-slate-700 select-none py-10">
+              {logs.length === 0
+                ? "Sistem siap. Masukkan URL target untuk memulai."
+                : "Tidak ada log yang cocok."}
             </div>
           ) : (
-            filteredLogs.map((log, index) => {
-              const styles = getLogStyles(log.type);
-              const icon = getLogIcon(log.type);
-
+            filteredLogs.map((log, i) => {
+              const s = LOG_STYLE[log.type] ?? LOG_STYLE.default;
               return (
                 <div
-                  key={index}
-                  className="flex gap-3.5 items-start py-1 px-2 hover:bg-slate-900/30 rounded transition-all"
+                  key={i}
+                  className="flex items-start gap-2.5 py-0.5 px-2 rounded hover:bg-white/[0.02] transition-colors group"
                 >
-                  <span className="text-[10px] text-slate-600 select-none font-bold mt-0.5">
-                    {log.time || "SYSTEM"}
+                  <span className="text-[9px] text-slate-700 shrink-0 mt-0.5 tabular-nums w-14">
+                    {log.time ?? "--:--:--"}
                   </span>
                   <span
-                    className={`text-[9px] font-black border uppercase px-1.5 py-0.25 rounded tracking-wide ${styles.pillClass} select-none`}
+                    className={`text-[8.5px] font-black border px-1.5 py-px rounded shrink-0 ${s.pill}`}
                   >
-                    {icon} {log.type}
+                    {s.icon} {log.type}
                   </span>
-                  <span
-                    className={`break-all leading-relaxed ${styles.colorClass}`}
-                  >
+                  <span className={`break-all leading-relaxed ${s.text}`}>
                     {log.message}
                   </span>
                 </div>
@@ -597,7 +538,7 @@ export function Dashboard() {
             })
           )}
         </div>
-      </section>
+      </div>
     </div>
   );
 }

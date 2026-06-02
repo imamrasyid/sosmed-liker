@@ -1,9 +1,6 @@
 import { isPostLiked, saveLikedPost } from '../../db/queries.js'
 import { retryWithBackoff, RetryConfig } from '../../utils/retry.js'
-
-function randomDelay(min = 2000, max = 5000) {
-  return new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min))
-}
+import { randomDelay } from '../../utils/helpers.js'
 
 export async function processThreads(context, db, targetUrl, onLog, options = {}) {
   const {
@@ -38,7 +35,6 @@ export async function processThreads(context, db, targetUrl, onLog, options = {}
     while (toLikeList.length < limit && consecutiveSkips < consecutiveSkipsLimit && scrollAttempts < maxScrollAttempts) {
       try {
         const postLinks = await page.$$('a[href*="/post/"]:has(time)')
-        let foundNewOnThisScroll = false
 
         for (const linkElement of postLinks) {
           const href = await linkElement.getAttribute('href')
@@ -51,7 +47,6 @@ export async function processThreads(context, db, targetUrl, onLog, options = {}
 
           if (processedPostIds.has(postId)) continue
           processedPostIds.add(postId)
-          foundNewOnThisScroll = true
 
           const alreadyLiked = await isPostLiked(db, 'threads', postId)
           if (alreadyLiked) {

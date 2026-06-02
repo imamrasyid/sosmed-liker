@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { PLATFORMS } from "../../utils/constants.js";
+import { useAppContext } from "../../context/AppContext.jsx";
+import { ConfirmModal } from "../shared/ConfirmModal.jsx";
 import { useTranslation } from "react-i18next";
+
+const PLATFORM_OPTIONS = [
+  { value: PLATFORMS.INSTAGRAM, label: "Instagram" },
+  { value: PLATFORMS.TWITTER, label: "Twitter / X" },
+  { value: PLATFORMS.THREADS, label: "Threads" },
+];
 
 export function ProfileManagement() {
   const { t } = useTranslation();
+  const { showToast } = useAppContext();
   const [platform, setPlatform] = useState(PLATFORMS.INSTAGRAM);
   const [profiles, setProfiles] = useState([]);
   const [activeProfile, setActiveProfile] = useState(null);
@@ -13,6 +22,13 @@ export function ProfileManagement() {
   const [migrationStatus, setMigrationStatus] = useState(false);
   const [migrationLoading, setMigrationLoading] = useState(false);
 
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    type: "",
+    payload: null,
+  });
+
   useEffect(() => {
     loadProfiles();
     checkMigrationStatus();
@@ -20,53 +36,22 @@ export function ProfileManagement() {
 
   const checkMigrationStatus = async () => {
     try {
-      const result = await window.api.getMigrationStatus();
-      if (result.success) {
-        setMigrationStatus(result.migrated);
-      }
-    } catch (err) {
-      console.error("Failed to check migration status:", err);
-    }
-  };
-
-  const handleMigrate = async () => {
-    if (!confirm(t("profileManagement.migrationConfirm"))) {
-      return;
-    }
-
-    setMigrationLoading(true);
-    try {
-      const result = await window.api.migrateCookiesToProfiles();
-      if (result.success) {
-        alert(result.message || t("profileManagement.migrationSuccess"));
-        setMigrationStatus(true);
-        loadProfiles();
-      } else {
-        alert(result.error || t("profileManagement.migrationFailed"));
-      }
-    } catch (err) {
-      alert(t("profileManagement.migrationFailed") + ": " + err.message);
-    } finally {
-      setMigrationLoading(false);
-    }
+      const r = await window.api.getMigrationStatus();
+      if (r.success) setMigrationStatus(r.migrated);
+    } catch {}
   };
 
   const loadProfiles = async () => {
     setLoading(true);
     try {
-      const [profilesResult, activeResult] = await Promise.all([
+      const [pRes, aRes] = await Promise.all([
         window.api.getProfiles(platform),
         window.api.getActiveProfile(platform),
       ]);
-
-      if (profilesResult.success) {
-        setProfiles(profilesResult.data || []);
-      }
-      if (activeResult.success) {
-        setActiveProfile(activeResult.data);
-      }
+      if (pRes.success) setProfiles(pRes.data ?? []);
+      if (aRes.success) setActiveProfile(aRes.data);
     } catch (err) {
-      console.error("Failed to load profiles:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -74,31 +59,30 @@ export function ProfileManagement() {
 
   const handleAddProfile = async () => {
     if (!profileName.trim()) {
-      alert(t("profileManagement.profileNameRequired"));
+      showToast(t("profileManagement.profileNameRequired"), "error");
       return;
     }
     if (!cookieContent.trim()) {
-      alert(t("profileManagement.cookieContentRequired"));
+      showToast(t("profileManagement.cookieContentRequired"), "error");
       return;
     }
-
     setLoading(true);
     try {
-      const result = await window.api.saveProfile(
+      const r = await window.api.saveProfile(
         platform,
         profileName,
         cookieContent,
       );
-      if (result.success) {
+      if (r.success) {
         setProfileName("");
         setCookieContent("");
-        loadProfiles();
-        alert(t("profileManagement.profileAdded"));
+        await loadProfiles();
+        showToast(t("profileManagement.profileAdded"), "success");
       } else {
-        alert(result.error || t("profileManagement.profileAddFailed"));
+        showToast(r.error ?? t("profileManagement.profileAddFailed"), "error");
       }
     } catch (err) {
-      alert(t("profileManagement.profileAddFailed") + ": " + err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
     }
@@ -107,256 +91,244 @@ export function ProfileManagement() {
   const handleSetActive = async (profileId) => {
     setLoading(true);
     try {
-      const result = await window.api.setActiveProfile(profileId);
-      if (result.success) {
-        loadProfiles();
+      const r = await window.api.setActiveProfile(profileId);
+      if (r.success) {
+        await loadProfiles();
+        showToast(t("profileManagement.profileSetActive"), "success");
       } else {
-        alert(result.error || t("profileManagement.profileSetActiveFailed"));
+        showToast(
+          r.error ?? t("profileManagement.profileSetActiveFailed"),
+          "error",
+        );
       }
     } catch (err) {
-      alert(t("profileManagement.profileSetActiveFailed") + ": " + err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (profileId) => {
-    if (!confirm(t("profileManagement.profileDeleteConfirm"))) return;
-
     setLoading(true);
     try {
-      const result = await window.api.deleteProfile(profileId);
-      if (result.success) {
-        loadProfiles();
+      const r = await window.api.deleteProfile(profileId);
+      if (r.success) {
+        await loadProfiles();
+        showToast(t("profileManagement.profileDeleted"), "success");
       } else {
-        alert(result.error || t("profileManagement.profileDeleteFailed"));
+        showToast(
+          r.error ?? t("profileManagement.profileDeleteFailed"),
+          "error",
+        );
       }
     } catch (err) {
-      alert(t("profileManagement.profileDeleteFailed") + ": " + err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
+      setConfirmModal({ open: false, type: "", payload: null });
     }
   };
 
-  const getPlatformLabel = (p) => {
-    switch (p) {
-      case PLATFORMS.INSTAGRAM:
-        return t("profileManagement.instagram");
-      case PLATFORMS.TWITTER:
-        return t("profileManagement.twitterX");
-      case PLATFORMS.THREADS:
-        return t("profileManagement.threads");
-      default:
-        return p;
+  const handleMigrate = async () => {
+    setMigrationLoading(true);
+    try {
+      const r = await window.api.migrateCookiesToProfiles();
+      if (r.success) {
+        setMigrationStatus(true);
+        await loadProfiles();
+        showToast(
+          r.message ?? t("profileManagement.migrationSuccess"),
+          "success",
+        );
+      } else {
+        showToast(r.error ?? t("profileManagement.migrationFailed"), "error");
+      }
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setMigrationLoading(false);
+      setConfirmModal({ open: false, type: "", payload: null });
     }
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h3 className="text-xl font-bold text-white mb-2">
-          {t("profileManagement.title")}
-        </h3>
-        <p className="text-slate-400 text-sm">
-          {t("profileManagement.description")}
-          <span className="text-indigo-400">
-            {" "}
-            {t("profileManagement.replacesOld")}
-          </span>
-        </p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <ConfirmModal
+        open={confirmModal.open && confirmModal.type === "delete"}
+        title="Hapus Profil?"
+        message={`Profil ini akan dihapus permanen dan tidak bisa dikembalikan.`}
+        confirmLabel="Ya, Hapus"
+        onConfirm={() => handleDelete(confirmModal.payload)}
+        onCancel={() =>
+          setConfirmModal({ open: false, type: "", payload: null })
+        }
+      />
+      <ConfirmModal
+        open={confirmModal.open && confirmModal.type === "migrate"}
+        title="Migrasi Cookie Lama?"
+        message="Ini akan membaca file cookie dari folder userData/cookie dan membuat profil baru untuk setiap file yang ditemukan."
+        confirmLabel="Ya, Migrasi"
+        variant="warning"
+        onConfirm={handleMigrate}
+        onCancel={() =>
+          setConfirmModal({ open: false, type: "", payload: null })
+        }
+      />
 
-      {/* Migration Banner */}
-      {!migrationStatus && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <span className="text-lg">🔄</span>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-amber-300">
-                {t("profileManagement.migrationTitle")}
-              </p>
-              <p className="text-xs text-amber-400/90 mt-1">
-                {t("profileManagement.migrationDesc")}
-              </p>
-              <button
-                onClick={handleMigrate}
-                disabled={migrationLoading}
-                className="mt-3 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-              >
-                {migrationLoading
-                  ? t("profileManagement.migrating")
-                  : t("profileManagement.migrateNow")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Info */}
-      <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <span className="text-lg">ℹ️</span>
-          <div>
-            <p className="text-sm font-bold text-blue-300">
-              {t("profileManagement.info")}
-            </p>
-            <ul className="text-xs text-blue-400/90 mt-1 space-y-1">
-              <li>• {t("profileManagement.info1")}</li>
-              <li>• {t("profileManagement.info2")}</li>
-              <li>• {t("profileManagement.info3")}</li>
-              <li>• {t("profileManagement.info4")}</li>
-              <li>• {t("profileManagement.info5")}</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* Platform Selector */}
-      <div className="flex gap-4 items-end">
-        <div className="flex-1">
-          <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">
-            {t("profileManagement.platform")}
-          </label>
-          <select
-            value={platform}
-            onChange={(e) => setPlatform(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
+      {/* Platform tabs */}
+      <div className="flex items-center gap-1 bg-white/[0.04] border border-white/[0.06] rounded-xl p-1 w-fit">
+        {PLATFORM_OPTIONS.map((p) => (
+          <button
+            key={p.value}
+            onClick={() => setPlatform(p.value)}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${platform === p.value ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-300"}`}
           >
-            <option value={PLATFORMS.INSTAGRAM}>Instagram</option>
-            <option value={PLATFORMS.TWITTER}>Twitter / X</option>
-            <option value={PLATFORMS.THREADS}>Threads</option>
-          </select>
-        </div>
+            {p.label}
+          </button>
+        ))}
       </div>
 
-      {/* Active Profile Indicator */}
-      {activeProfile ? (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-            <div>
-              <p className="text-sm font-bold text-emerald-300">
-                {t("profileManagement.activeProfile")}:{" "}
-                {activeProfile.profile_name}
-              </p>
-              <p className="text-xs text-emerald-400/90">
-                Profil ini akan digunakan untuk automasi{" "}
-                {getPlatformLabel(platform)}
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full bg-slate-600"></div>
-            <div>
-              <p className="text-sm font-bold text-slate-300">
-                Tidak ada profil aktif
-              </p>
-              <p className="text-xs text-slate-400">
-                Cookie dari folder akan digunakan sebagai fallback
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Profile Form */}
-      <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-slate-800/80 p-5">
-        <h4 className="text-sm font-bold text-slate-200 mb-4">
-          Tambah Profil Baru
-        </h4>
-        <div className="flex flex-col gap-3">
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-2">
-              Nama Profil
-            </label>
-            <input
-              type="text"
-              value={profileName}
-              onChange={(e) => setProfileName(e.target.value)}
-              placeholder={t("profileManagement.profileNamePlaceholder")}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 placeholder-slate-600"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-2">
-              Cookie Content (Netscape Format)
-            </label>
-            <textarea
-              value={cookieContent}
-              onChange={(e) => setCookieContent(e.target.value)}
-              placeholder={t("profileManagement.cookieContentPlaceholder")}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 h-32 resize-none font-mono placeholder-slate-600"
-            />
+      {/* Migration banner */}
+      {!migrationStatus && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-amber-500/8 border border-amber-500/20 rounded-xl">
+          <span className="text-amber-400 text-sm shrink-0">🔄</span>
+          <div className="flex-1">
+            <p className="text-xs font-bold text-amber-300">
+              {t("profileManagement.migrationTitle")}
+            </p>
+            <p className="text-[11px] text-amber-400/70 mt-0.5">
+              {t("profileManagement.migrationDesc")}
+            </p>
           </div>
           <button
-            onClick={handleAddProfile}
-            disabled={loading}
-            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white rounded-xl text-sm font-bold transition-all self-start"
+            onClick={() =>
+              setConfirmModal({ open: true, type: "migrate", payload: null })
+            }
+            disabled={migrationLoading}
+            className="text-[10px] font-bold text-amber-400 border border-amber-500/30 rounded-lg px-2.5 py-1 hover:bg-amber-500/10 transition-all shrink-0 disabled:opacity-50"
           >
-            {loading
-              ? t("profileManagement.adding")
-              : t("profileManagement.addProfileBtn")}
+            {migrationLoading ? "..." : t("profileManagement.migrateNow")}
           </button>
+        </div>
+      )}
+
+      {/* Active profile indicator */}
+      <div
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${activeProfile ? "bg-emerald-500/8 border-emerald-500/20" : "bg-white/[0.02] border-white/[0.06]"}`}
+      >
+        <span
+          className={`w-2 h-2 rounded-full shrink-0 ${activeProfile ? "bg-emerald-500" : "bg-slate-700"}`}
+        />
+        <div>
+          <p
+            className={`text-xs font-bold ${activeProfile ? "text-emerald-300" : "text-slate-500"}`}
+          >
+            {activeProfile
+              ? `Profil Aktif: ${activeProfile.profile_name}`
+              : "Tidak ada profil aktif"}
+          </p>
+          <p className="text-[10px] text-slate-600">
+            {activeProfile
+              ? `Digunakan untuk otomatisasi ${platform}`
+              : "Cookie folder akan digunakan sebagai fallback"}
+          </p>
         </div>
       </div>
 
-      {/* Profiles List */}
-      <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-slate-800/80 overflow-hidden">
-        <div className="p-4 border-b border-slate-800/50">
-          <h4 className="text-sm font-bold text-slate-200">
-            Daftar Profil - {getPlatformLabel(platform)}
-            <span className="ml-2 text-xs text-slate-400">
-              ({profiles.length} profil)
-            </span>
-          </h4>
+      {/* Add profile form */}
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-3">
+        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+          {t("profileManagement.addProfile")}
+        </p>
+        <input
+          type="text"
+          value={profileName}
+          onChange={(e) => setProfileName(e.target.value)}
+          placeholder={t("profileManagement.profileNamePlaceholder")}
+          className="w-full bg-[#0c1220] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+        />
+        <div>
+          <textarea
+            value={cookieContent}
+            onChange={(e) => setCookieContent(e.target.value)}
+            placeholder={t("profileManagement.cookieContentPlaceholder")}
+            rows={5}
+            className="w-full bg-[#0c1220] border border-white/[0.08] rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all resize-none"
+          />
+          <p className="text-[10px] text-slate-600 mt-1">
+            Format: Netscape HTTP Cookie File (.txt dari ekstensi browser)
+          </p>
+        </div>
+        <button
+          onClick={handleAddProfile}
+          disabled={loading || !profileName.trim() || !cookieContent.trim()}
+          className="self-start px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all"
+        >
+          {loading ? "Menambahkan..." : t("profileManagement.addProfileBtn")}
+        </button>
+      </div>
+
+      {/* Profiles list */}
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
+          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+            Daftar Profil —{" "}
+            {PLATFORM_OPTIONS.find((p) => p.value === platform)?.label}
+          </p>
+          <span className="text-[10px] text-slate-600">
+            {profiles.length} profil
+          </span>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-slate-400">
-            {t("profileManagement.loading")}
+          <div className="p-8 text-center text-slate-600 text-xs">
+            Memuat...
           </div>
         ) : profiles.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">
+          <div className="p-8 text-center text-slate-700 text-xs">
             {t("profileManagement.noProfilesPlatform")}
           </div>
         ) : (
-          <div className="divide-y divide-slate-800/40">
+          <div className="divide-y divide-white/[0.04]">
             {profiles.map((profile) => (
               <div
                 key={profile.id}
-                className="p-4 flex items-center justify-between hover:bg-slate-900/20 transition-all"
+                className="px-5 py-3.5 flex items-center gap-3 hover:bg-white/[0.02] transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-slate-200">
+                    <p className="text-sm font-semibold text-slate-200 truncate">
                       {profile.profile_name}
                     </p>
                     {activeProfile?.id === profile.id && (
-                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-bold uppercase">
+                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[9px] font-black uppercase shrink-0">
                         Aktif
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Ditambahkan:{" "}
+                  <p className="text-[10px] text-slate-600 mt-0.5">
+                    Ditambahkan{" "}
                     {new Date(profile.created_at).toLocaleDateString("id-ID")}
                   </p>
                 </div>
-                <div className="flex gap-2 ml-4">
+                <div className="flex gap-2">
                   {activeProfile?.id !== profile.id && (
                     <button
                       onClick={() => handleSetActive(profile.id)}
-                      className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-xs font-bold border border-indigo-500/20 transition-all"
+                      className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-[10px] font-bold transition-all"
                     >
                       Set Aktif
                     </button>
                   )}
                   <button
-                    onClick={() => handleDelete(profile.id)}
-                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/20 transition-all"
+                    onClick={() =>
+                      setConfirmModal({
+                        open: true,
+                        type: "delete",
+                        payload: profile.id,
+                      })
+                    }
+                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-[10px] font-bold transition-all"
                   >
                     Hapus
                   </button>

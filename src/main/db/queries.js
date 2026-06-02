@@ -1,729 +1,388 @@
-export function isPostLiked(db, platform, postId) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT id FROM liked_posts WHERE platform = ? AND post_id = ?',
-      [platform, postId],
-      (err, row) => {
-        if (err) reject(err)
-        else resolve(!!row)
-      }
-    )
-  })
+import { run, get, all, transaction } from './wrapper.js'
+
+// ── Liked Posts ───────────────────────────────────────────────────────────────
+
+export async function isPostLiked(db, platform, postId) {
+  const row = await get(db, 'SELECT id FROM liked_posts WHERE platform = ? AND post_id = ?', [platform, postId])
+  return !!row
 }
 
-export function saveLikedPost(db, platform, targetProfile, postId) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO liked_posts (platform, target_profile, post_id) VALUES (?, ?, ?)',
-      [platform, targetProfile, postId],
-      function (err) {
-        if (err) reject(err)
-        else resolve(this.lastID)
-      }
-    )
-  })
+export async function saveLikedPost(db, platform, targetProfile, postId) {
+  const { lastID } = await run(
+    db,
+    'INSERT INTO liked_posts (platform, target_profile, post_id) VALUES (?, ?, ?)',
+    [platform, targetProfile, postId]
+  )
+  return lastID
 }
 
 export function getAllLikedPosts(db) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      'SELECT * FROM liked_posts ORDER BY liked_at DESC',
-      [],
-      (err, rows) => {
-        if (err) reject(err)
-        else resolve(rows || [])
-      }
-    )
-  })
+  return all(db, 'SELECT * FROM liked_posts ORDER BY liked_at DESC')
 }
 
-export function deleteLikedPost(db, id) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'DELETE FROM liked_posts WHERE id = ?',
-      [id],
-      (err) => {
-        if (err) reject(err)
-        else resolve(true)
-      }
-    )
-  })
+export async function deleteLikedPost(db, id) {
+  await run(db, 'DELETE FROM liked_posts WHERE id = ?', [id])
+  return true
 }
 
-export function clearLikedPosts(db) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'DELETE FROM liked_posts',
-      [],
-      (err) => {
-        if (err) reject(err)
-        else resolve(true)
-      }
-    )
-  })
+export async function clearLikedPosts(db) {
+  await run(db, 'DELETE FROM liked_posts')
+  return true
 }
 
-export function getDbStats(db) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      `SELECT 
-        COUNT(id) as total_liked,
-        COUNT(DISTINCT target_profile) as total_profiles,
-        (SELECT COUNT(id) FROM liked_posts WHERE liked_at >= date('now', '-1 day')) as liked_today
-       FROM liked_posts`,
-      [],
-      (err, row) => {
-        if (err) reject(err)
-        else resolve(row || { total_liked: 0, total_profiles: 0, liked_today: 0 })
-      }
-    )
-  })
+export async function getDbStats(db) {
+  const row = await get(db, `
+    SELECT
+      COUNT(id) as total_liked,
+      COUNT(DISTINCT target_profile) as total_profiles,
+      (SELECT COUNT(id) FROM liked_posts WHERE liked_at >= date('now', '-1 day')) as liked_today
+    FROM liked_posts
+  `)
+  return row || { total_liked: 0, total_profiles: 0, liked_today: 0 }
 }
 
-export function getConfig(db, key) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT value FROM config WHERE key = ?', [key], (err, row) => {
-      if (err) reject(err)
-      else resolve(row ? row.value : null)
-    })
-  })
+// ── Config ────────────────────────────────────────────────────────────────────
+
+export async function getConfig(db, key) {
+  const row = await get(db, 'SELECT value FROM config WHERE key = ?', [key])
+  return row ? row.value : null
 }
 
-export function saveConfig(db, key, value) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'REPLACE INTO config (key, value) VALUES (?, ?)',
-      [key, value],
-      (err) => {
-        if (err) reject(err)
-        else resolve(true)
-      }
-    )
-  })
+export async function saveConfig(db, key, value) {
+  await run(db, 'REPLACE INTO config (key, value) VALUES (?, ?)', [key, value])
+  return true
 }
 
-// Profile Lists (Blacklist/Whitelist) operations
-export function isProfileBlacklisted(db, platform, profileUrl) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT id FROM profile_lists WHERE list_type = ? AND platform = ? AND profile_url = ?',
-      ['blacklist', platform, profileUrl],
-      (err, row) => {
-        if (err) reject(err)
-        else resolve(!!row)
-      }
-    )
-  })
+// ── Profile Lists (Blacklist / Whitelist) ─────────────────────────────────────
+
+export async function isProfileBlacklisted(db, platform, profileUrl) {
+  const row = await get(
+    db,
+    'SELECT id FROM profile_lists WHERE list_type = ? AND platform = ? AND profile_url = ?',
+    ['blacklist', platform, profileUrl]
+  )
+  return !!row
 }
 
-export function isProfileWhitelisted(db, platform, profileUrl) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT id FROM profile_lists WHERE list_type = ? AND platform = ? AND profile_url = ?',
-      ['whitelist', platform, profileUrl],
-      (err, row) => {
-        if (err) reject(err)
-        else resolve(!!row)
-      }
-    )
-  })
+export async function isProfileWhitelisted(db, platform, profileUrl) {
+  const row = await get(
+    db,
+    'SELECT id FROM profile_lists WHERE list_type = ? AND platform = ? AND profile_url = ?',
+    ['whitelist', platform, profileUrl]
+  )
+  return !!row
 }
 
-export function addToBlacklist(db, platform, profileUrl, profileName = null) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT OR REPLACE INTO profile_lists (list_type, platform, profile_url, profile_name) VALUES (?, ?, ?, ?)',
-      ['blacklist', platform, profileUrl, profileName],
-      function (err) {
-        if (err) reject(err)
-        else resolve(this.lastID)
-      }
-    )
-  })
+export async function addToBlacklist(db, platform, profileUrl, profileName = null) {
+  const { lastID } = await run(
+    db,
+    'INSERT OR REPLACE INTO profile_lists (list_type, platform, profile_url, profile_name) VALUES (?, ?, ?, ?)',
+    ['blacklist', platform, profileUrl, profileName]
+  )
+  return lastID
 }
 
-export function addToWhitelist(db, platform, profileUrl, profileName = null) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT OR REPLACE INTO profile_lists (list_type, platform, profile_url, profile_name) VALUES (?, ?, ?, ?)',
-      ['whitelist', platform, profileUrl, profileName],
-      function (err) {
-        if (err) reject(err)
-        else resolve(this.lastID)
-      }
-    )
-  })
+export async function addToWhitelist(db, platform, profileUrl, profileName = null) {
+  const { lastID } = await run(
+    db,
+    'INSERT OR REPLACE INTO profile_lists (list_type, platform, profile_url, profile_name) VALUES (?, ?, ?, ?)',
+    ['whitelist', platform, profileUrl, profileName]
+  )
+  return lastID
 }
 
-export function removeFromList(db, listType, platform, profileUrl) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'DELETE FROM profile_lists WHERE list_type = ? AND platform = ? AND profile_url = ?',
-      [listType, platform, profileUrl],
-      (err) => {
-        if (err) reject(err)
-        else resolve(true)
-      }
-    )
-  })
+export async function removeFromList(db, listType, platform, profileUrl) {
+  await run(
+    db,
+    'DELETE FROM profile_lists WHERE list_type = ? AND platform = ? AND profile_url = ?',
+    [listType, platform, profileUrl]
+  )
+  return true
 }
 
 export function getBlacklist(db, platform = null) {
-  return new Promise((resolve, reject) => {
-    const query = platform
-      ? 'SELECT * FROM profile_lists WHERE list_type = ? AND platform = ? ORDER BY created_at DESC'
-      : 'SELECT * FROM profile_lists WHERE list_type = ? ORDER BY created_at DESC'
-    const params = platform ? ['blacklist', platform] : ['blacklist']
-
-    db.all(query, params, (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  return platform
+    ? all(db, 'SELECT * FROM profile_lists WHERE list_type = ? AND platform = ? ORDER BY created_at DESC', ['blacklist', platform])
+    : all(db, 'SELECT * FROM profile_lists WHERE list_type = ? ORDER BY created_at DESC', ['blacklist'])
 }
 
 export function getWhitelist(db, platform = null) {
-  return new Promise((resolve, reject) => {
-    const query = platform
-      ? 'SELECT * FROM profile_lists WHERE list_type = ? AND platform = ? ORDER BY created_at DESC'
-      : 'SELECT * FROM profile_lists WHERE list_type = ? ORDER BY created_at DESC'
-    const params = platform ? ['whitelist', platform] : ['whitelist']
-
-    db.all(query, params, (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  return platform
+    ? all(db, 'SELECT * FROM profile_lists WHERE list_type = ? AND platform = ? ORDER BY created_at DESC', ['whitelist', platform])
+    : all(db, 'SELECT * FROM profile_lists WHERE list_type = ? ORDER BY created_at DESC', ['whitelist'])
 }
 
-export function hasWhitelistEnabled(db, platform) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT COUNT(*) as count FROM profile_lists WHERE list_type = ? AND platform = ?',
-      ['whitelist', platform],
-      (err, row) => {
-        if (err) reject(err)
-        else resolve((row?.count || 0) > 0)
-      }
-    )
-  })
+export async function hasWhitelistEnabled(db, platform) {
+  const row = await get(
+    db,
+    'SELECT COUNT(*) as count FROM profile_lists WHERE list_type = ? AND platform = ?',
+    ['whitelist', platform]
+  )
+  return (row?.count || 0) > 0
 }
 
-// Profiles CRUD operations
+// ── Profiles ──────────────────────────────────────────────────────────────────
+
 export function getProfiles(db, platform = null) {
-  return new Promise((resolve, reject) => {
-    const query = platform
-      ? 'SELECT * FROM profiles WHERE platform = ? ORDER BY created_at DESC'
-      : 'SELECT * FROM profiles ORDER BY created_at DESC'
-    const params = platform ? [platform] : []
-
-    db.all(query, params, (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  return platform
+    ? all(db, 'SELECT * FROM profiles WHERE platform = ? ORDER BY created_at DESC', [platform])
+    : all(db, 'SELECT * FROM profiles ORDER BY created_at DESC')
 }
 
-export function getActiveProfile(db, platform) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT * FROM profiles WHERE platform = ? AND is_active = 1',
-      [platform],
-      (err, row) => {
-        if (err) reject(err)
-        else resolve(row || null)
-      }
+export async function getActiveProfile(db, platform) {
+  const row = await get(db, 'SELECT * FROM profiles WHERE platform = ? AND is_active = 1', [platform])
+  return row || null
+}
+
+export async function saveProfile(db, platform, profileName, cookieContent) {
+  const { lastID } = await run(
+    db,
+    'INSERT OR REPLACE INTO profiles (platform, profile_name, cookie_content) VALUES (?, ?, ?)',
+    [platform, profileName, cookieContent]
+  )
+  return lastID
+}
+
+export async function deleteProfile(db, profileId) {
+  await run(db, 'DELETE FROM profiles WHERE id = ?', [profileId])
+  return true
+}
+
+export async function setActiveProfile(db, profileId) {
+  // Atomik: nonaktifkan semua profil platform ini, lalu aktifkan yang dipilih
+  await transaction(db, async () => {
+    await run(
+      db,
+      'UPDATE profiles SET is_active = 0 WHERE platform = (SELECT platform FROM profiles WHERE id = ?)',
+      [profileId]
     )
+    await run(db, 'UPDATE profiles SET is_active = 1 WHERE id = ?', [profileId])
   })
+  return true
 }
 
-export function saveProfile(db, platform, profileName, cookieContent) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT OR REPLACE INTO profiles (platform, profile_name, cookie_content) VALUES (?, ?, ?)',
-      [platform, profileName, cookieContent],
-      function (err) {
-        if (err) reject(err)
-        else resolve(this.lastID)
-      }
-    )
-  })
-}
+// ── Proxies ───────────────────────────────────────────────────────────────────
 
-export function deleteProfile(db, profileId) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'DELETE FROM profiles WHERE id = ?',
-      [profileId],
-      (err) => {
-        if (err) reject(err)
-        else resolve(true)
-      }
-    )
-  })
-}
-
-export function setActiveProfile(db, profileId) {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      // First, deactivate all profiles for the same platform
-      db.run(
-        'UPDATE profiles SET is_active = 0 WHERE platform = (SELECT platform FROM profiles WHERE id = ?)',
-        [profileId],
-        (err) => {
-          if (err) {
-            reject(err)
-            return
-          }
-          // Then activate the selected profile
-          db.run(
-            'UPDATE profiles SET is_active = 1 WHERE id = ?',
-            [profileId],
-            (err) => {
-              if (err) reject(err)
-              else resolve(true)
-            }
-          )
-        }
-      )
-    })
-  })
-}
-
-// Proxies CRUD operations
 export function getProxies(db) {
-  return new Promise((resolve, reject) => {
-    db.all('SELECT * FROM proxies ORDER BY created_at DESC', (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  return all(db, 'SELECT * FROM proxies ORDER BY created_at DESC')
 }
 
-export function getActiveProxy(db) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM proxies WHERE is_active = 1', (err, row) => {
-      if (err) reject(err)
-      else resolve(row || null)
-    })
-  })
+export async function getActiveProxy(db) {
+  const row = await get(db, 'SELECT * FROM proxies WHERE is_active = 1')
+  return row || null
 }
 
-export function saveProxy(db, proxyType, host, port, username = null, password = null) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO proxies (proxy_type, host, port, username, password) VALUES (?, ?, ?, ?, ?)',
-      [proxyType, host, port, username, password],
-      function (err) {
-        if (err) reject(err)
-        else resolve(this.lastID)
-      }
-    )
-  })
+export async function saveProxy(db, proxyType, host, port, username = null, password = null) {
+  const { lastID } = await run(
+    db,
+    'INSERT INTO proxies (proxy_type, host, port, username, password) VALUES (?, ?, ?, ?, ?)',
+    [proxyType, host, port, username, password]
+  )
+  return lastID
 }
 
-export function deleteProxy(db, proxyId) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'DELETE FROM proxies WHERE id = ?',
-      [proxyId],
-      (err) => {
-        if (err) reject(err)
-        else resolve(true)
-      }
-    )
-  })
+export async function deleteProxy(db, proxyId) {
+  await run(db, 'DELETE FROM proxies WHERE id = ?', [proxyId])
+  return true
 }
 
-export function setActiveProxy(db, proxyId) {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      // First, deactivate all proxies
-      db.run('UPDATE proxies SET is_active = 0', (err) => {
-        if (err) {
-          reject(err)
-          return
-        }
-        // Then activate the selected proxy
-        db.run(
-          'UPDATE proxies SET is_active = 1 WHERE id = ?',
-          [proxyId],
-          (err) => {
-            if (err) reject(err)
-            else resolve(true)
-          }
-        )
-      })
-    })
+export async function setActiveProxy(db, proxyId) {
+  await transaction(db, async () => {
+    await run(db, 'UPDATE proxies SET is_active = 0')
+    await run(db, 'UPDATE proxies SET is_active = 1 WHERE id = ?', [proxyId])
   })
+  return true
 }
 
-// Migration: Cookie files to profiles
+// ── Migration ─────────────────────────────────────────────────────────────────
+
 export async function migrateCookiesToProfiles(db, cookieFolderPath) {
-  const fs = await import('fs')
-  const path = await import('path')
+  const { existsSync, readdirSync, readFileSync } = await import('fs')
+  const { join } = await import('path')
 
-  return new Promise((resolve, reject) => {
-    try {
-      if (!fs.existsSync(cookieFolderPath)) {
-        resolve({ success: true, migrated: 0, message: 'Cookie folder not found, nothing to migrate' })
-        return
+  if (!existsSync(cookieFolderPath)) {
+    return { success: true, migrated: 0, message: 'Cookie folder not found, nothing to migrate' }
+  }
+
+  const files = readdirSync(cookieFolderPath)
+    .filter(f => f.endsWith('.txt') && f.toLowerCase() !== 'readme.txt')
+
+  if (files.length === 0) {
+    return { success: true, migrated: 0, message: 'No cookie files found' }
+  }
+
+  let migratedCount = 0
+
+  for (const file of files) {
+    const platform = file.replace('.txt', '').toLowerCase()
+    const content = readFileSync(join(cookieFolderPath, file), 'utf-8')
+
+    const existing = await get(db, 'SELECT id FROM profiles WHERE platform = ?', [platform])
+    if (!existing) {
+      const profileName = `${platform.charAt(0).toUpperCase() + platform.slice(1)} Profile (Migrated)`
+      try {
+        await run(
+          db,
+          'INSERT INTO profiles (platform, profile_name, cookie_content, is_active) VALUES (?, ?, ?, 1)',
+          [platform, profileName, content]
+        )
+        migratedCount++
+      } catch (err) {
+        console.error(`Error migrating ${platform}:`, err)
       }
-
-      const files = fs.readdirSync(cookieFolderPath).filter(f => f.endsWith('.txt'))
-      if (files.length === 0) {
-        resolve({ success: true, migrated: 0, message: 'No cookie files found' })
-        return
-      }
-
-      let migratedCount = 0
-
-      // Read all cookie files
-      for (const file of files) {
-        const filePath = path.join(cookieFolderPath, file)
-        const content = fs.readFileSync(filePath, 'utf-8')
-
-        // Extract platform from filename (e.g., instagram.txt -> instagram)
-        const platform = file.replace('.txt', '').toLowerCase()
-
-        // Check if profile already exists for this platform
-        db.get('SELECT id FROM profiles WHERE platform = ?', [platform], (err, row) => {
-          if (err) {
-            console.error(`Error checking profile for ${platform}:`, err)
-            return
-          }
-
-          if (!row) {
-            // Create new profile from cookie file
-            const profileName = `${platform.charAt(0).toUpperCase() + platform.slice(1)} Profile (Migrated)`
-            db.run(
-              'INSERT INTO profiles (name, platform, cookie_content, is_active) VALUES (?, ?, ?, 1)',
-              [profileName, platform, content],
-              function (err) {
-                if (err) {
-                  console.error(`Error migrating ${platform}:`, err)
-                } else {
-                  migratedCount++
-                  console.log(`Migrated ${platform} cookie to profile ID ${this.lastID}`)
-                }
-              }
-            )
-          }
-        })
-      }
-
-      // Mark migration as complete
-      setTimeout(() => {
-        db.run('UPDATE config SET value = ? WHERE key = ?', ['true', 'migration_cookies_to_profiles'], (err) => {
-          if (err) {
-            reject(err)
-          } else {
-            resolve({ success: true, migrated: migratedCount, message: `Migrated ${migratedCount} cookie files to profiles` })
-          }
-        })
-      }, 1000)
-    } catch (err) {
-      reject(err)
     }
-  })
+  }
+
+  await run(db, 'UPDATE config SET value = ? WHERE key = ?', ['true', 'migration_cookies_to_profiles'])
+  return { success: true, migrated: migratedCount, message: `Migrated ${migratedCount} cookie files to profiles` }
 }
 
-export function getMigrationStatus(db) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT value FROM config WHERE key = ?', ['migration_cookies_to_profiles'], (err, row) => {
-      if (err) reject(err)
-      else resolve(row ? row.value === 'true' : false)
-    })
-  })
+export async function getMigrationStatus(db) {
+  const row = await get(db, 'SELECT value FROM config WHERE key = ?', ['migration_cookies_to_profiles'])
+  return row ? row.value === 'true' : false
 }
 
-// Batch Jobs CRUD operations
-export function createBatchJob(db, name, platform, urls) {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      // Create the batch job
-      db.run(
-        'INSERT INTO batch_jobs (name, platform, status, total_urls) VALUES (?, ?, ?, ?)',
-        [name, platform, 'pending', urls.length],
-        function (err) {
-          if (err) {
-            reject(err)
-            return
-          }
-          const batchId = this.lastID
+// ── Batch Jobs ────────────────────────────────────────────────────────────────
 
-          // Insert all URLs
-          const stmt = db.prepare('INSERT INTO batch_urls (batch_id, url) VALUES (?, ?)')
-          urls.forEach(url => {
-            stmt.run(batchId, url)
-          })
-          stmt.finalize((err) => {
-            if (err) reject(err)
-            else resolve(batchId)
-          })
-        }
-      )
-    })
+export async function createBatchJob(db, name, platform, urls) {
+  return transaction(db, async () => {
+    const { lastID: batchId } = await run(
+      db,
+      'INSERT INTO batch_jobs (name, platform, status, total_urls) VALUES (?, ?, ?, ?)',
+      [name, platform, 'pending', urls.length]
+    )
+    for (const url of urls) {
+      await run(db, 'INSERT INTO batch_urls (batch_id, url) VALUES (?, ?)', [batchId, url])
+    }
+    return batchId
   })
 }
 
 export function getBatchJobs(db) {
-  return new Promise((resolve, reject) => {
-    db.all('SELECT * FROM batch_jobs ORDER BY created_at DESC', (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  return all(db, 'SELECT * FROM batch_jobs ORDER BY created_at DESC')
 }
 
-export function getBatchJob(db, batchId) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM batch_jobs WHERE id = ?', [batchId], (err, row) => {
-      if (err) reject(err)
-      else resolve(row || null)
-    })
-  })
+export async function getBatchJob(db, batchId) {
+  const row = await get(db, 'SELECT * FROM batch_jobs WHERE id = ?', [batchId])
+  return row || null
 }
 
 export function getBatchUrls(db, batchId) {
-  return new Promise((resolve, reject) => {
-    db.all('SELECT * FROM batch_urls WHERE batch_id = ? ORDER BY id', [batchId], (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  return all(db, 'SELECT * FROM batch_urls WHERE batch_id = ? ORDER BY id', [batchId])
 }
 
-export function updateBatchJobStatus(db, batchId, status) {
-  return new Promise((resolve, reject) => {
-    const updates = ['status = ?']
-    const params = [status]
-
-    if (status === 'running') {
-      updates.push('started_at = CURRENT_TIMESTAMP')
-    } else if (status === 'completed' || status === 'failed') {
-      updates.push('completed_at = CURRENT_TIMESTAMP')
-    }
-
-    db.run(
-      `UPDATE batch_jobs SET ${updates.join(', ')} WHERE id = ?`,
-      [...params, batchId],
-      (err) => {
-        if (err) reject(err)
-        else resolve(true)
-      }
-    )
-  })
+export async function updateBatchJobStatus(db, batchId, status) {
+  const extras = status === 'running'
+    ? ', started_at = CURRENT_TIMESTAMP'
+    : (status === 'completed' || status === 'failed') ? ', completed_at = CURRENT_TIMESTAMP' : ''
+  await run(db, `UPDATE batch_jobs SET status = ?${extras} WHERE id = ?`, [status, batchId])
+  return true
 }
 
-export function updateBatchJobProgress(db, batchId, processed, successful, failed) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'UPDATE batch_jobs SET processed_urls = ?, successful_urls = ?, failed_urls = ? WHERE id = ?',
-      [processed, successful, failed, batchId],
-      (err) => {
-        if (err) reject(err)
-        else resolve(true)
-      }
-    )
-  })
+export async function updateBatchJobProgress(db, batchId, processed, successful, failed) {
+  await run(
+    db,
+    'UPDATE batch_jobs SET processed_urls = ?, successful_urls = ?, failed_urls = ? WHERE id = ?',
+    [processed, successful, failed, batchId]
+  )
+  return true
 }
 
-export function updateBatchUrlStatus(db, urlId, status, errorMessage = null) {
-  return new Promise((resolve, reject) => {
-    const updates = ['status = ?']
-    const params = [status]
-
-    if (status === 'completed' || status === 'failed') {
-      updates.push('processed_at = CURRENT_TIMESTAMP')
-    }
-
-    if (errorMessage) {
-      updates.push('error_message = ?')
-      params.push(errorMessage)
-    }
-
-    params.push(urlId)
-
-    db.run(
-      `UPDATE batch_urls SET ${updates.join(', ')} WHERE id = ?`,
-      params,
-      (err) => {
-        if (err) reject(err)
-        else resolve(true)
-      }
-    )
-  })
+export async function updateBatchUrlStatus(db, urlId, status, errorMessage = null) {
+  const timestamp = (status === 'completed' || status === 'failed') ? ', processed_at = CURRENT_TIMESTAMP' : ''
+  const params = errorMessage
+    ? [status, errorMessage, urlId]
+    : [status, urlId]
+  const errorCol = errorMessage ? ', error_message = ?' : ''
+  await run(db, `UPDATE batch_urls SET status = ?${errorCol}${timestamp} WHERE id = ?`, params)
+  return true
 }
 
-export function deleteBatchJob(db, batchId) {
-  return new Promise((resolve, reject) => {
-    db.run('DELETE FROM batch_jobs WHERE id = ?', [batchId], (err) => {
-      if (err) reject(err)
-      else resolve(true)
-    })
-  })
+export async function deleteBatchJob(db, batchId) {
+  await run(db, 'DELETE FROM batch_jobs WHERE id = ?', [batchId])
+  return true
 }
 
-// Analytics queries
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
 export function getLikedPostsByPlatform(db, days = 30) {
-  return new Promise((resolve, reject) => {
-    const query = `
-      SELECT 
-        platform,
-        COUNT(*) as count,
-        DATE(liked_at) as date
-      FROM liked_posts
-      WHERE liked_at >= datetime('now', '-${days} days')
-      GROUP BY platform, DATE(liked_at)
-      ORDER BY date DESC, platform
-    `
-    db.all(query, (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  const safeDays = Math.max(1, Math.min(365, parseInt(days, 10) || 30))
+  return all(db, `
+    SELECT platform, COUNT(*) as count, DATE(liked_at) as date
+    FROM liked_posts
+    WHERE liked_at >= datetime('now', '-' || ? || ' days')
+    GROUP BY platform, DATE(liked_at)
+    ORDER BY date DESC, platform
+  `, [safeDays])
 }
 
 export function getLikedPostsCountByPlatform(db) {
-  return new Promise((resolve, reject) => {
-    const query = `
-      SELECT 
-        platform,
-        COUNT(*) as count
-      FROM liked_posts
-      GROUP BY platform
-    `
-    db.all(query, (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  return all(db, 'SELECT platform, COUNT(*) as count FROM liked_posts GROUP BY platform')
 }
 
 export function getLikedPostsDaily(db, days = 30) {
-  return new Promise((resolve, reject) => {
-    const query = `
-      SELECT 
-        DATE(liked_at) as date,
-        COUNT(*) as count
-      FROM liked_posts
-      WHERE liked_at >= datetime('now', '-${days} days')
-      GROUP BY DATE(liked_at)
-      ORDER BY date DESC
-    `
-    db.all(query, (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  const safeDays = Math.max(1, Math.min(365, parseInt(days, 10) || 30))
+  return all(db, `
+    SELECT DATE(liked_at) as date, COUNT(*) as count
+    FROM liked_posts
+    WHERE liked_at >= datetime('now', '-' || ? || ' days')
+    GROUP BY DATE(liked_at)
+    ORDER BY date DESC
+  `, [safeDays])
 }
 
 export function getBatchJobStats(db) {
-  return new Promise((resolve, reject) => {
-    const query = `
-      SELECT 
-        status,
-        COUNT(*) as count,
-        SUM(total_urls) as total_urls,
-        SUM(processed_urls) as processed_urls,
-        SUM(successful_urls) as successful_urls,
-        SUM(failed_urls) as failed_urls
-      FROM batch_jobs
-      GROUP BY status
-    `
-    db.all(query, (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+  return all(db, `
+    SELECT
+      status,
+      COUNT(*) as count,
+      SUM(total_urls) as total_urls,
+      SUM(processed_urls) as processed_urls,
+      SUM(successful_urls) as successful_urls,
+      SUM(failed_urls) as failed_urls
+    FROM batch_jobs
+    GROUP BY status
+  `)
 }
 
-// Comment Templates CRUD operations
-export function getCommentTemplates(db, platform) {
-  return new Promise((resolve, reject) => {
-    const query = platform
-      ? 'SELECT * FROM comment_templates WHERE platform = ? ORDER BY created_at DESC'
-      : 'SELECT * FROM comment_templates ORDER BY created_at DESC'
-    const params = platform ? [platform] : []
-    db.all(query, params, (err, rows) => {
-      if (err) reject(err)
-      else resolve(rows || [])
-    })
-  })
+// ── Comment Templates ─────────────────────────────────────────────────────────
+
+export function getCommentTemplates(db, platform = null) {
+  return platform
+    ? all(db, 'SELECT * FROM comment_templates WHERE platform = ? ORDER BY created_at DESC', [platform])
+    : all(db, 'SELECT * FROM comment_templates ORDER BY created_at DESC')
 }
 
-export function getActiveCommentTemplate(db, platform) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT * FROM comment_templates WHERE platform = ? AND is_active = 1',
-      [platform],
-      (err, row) => {
-        if (err) reject(err)
-        else resolve(row || null)
-      }
-    )
-  })
+export async function getActiveCommentTemplate(db, platform) {
+  const row = await get(
+    db,
+    'SELECT * FROM comment_templates WHERE platform = ? AND is_active = 1',
+    [platform]
+  )
+  return row || null
 }
 
-export function saveCommentTemplate(db, platform, templateName, commentText) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO comment_templates (platform, template_name, comment_text) VALUES (?, ?, ?)',
-      [platform, templateName, commentText],
-      function (err) {
-        if (err) reject(err)
-        else resolve(this.lastID)
-      }
-    )
-  })
+export async function saveCommentTemplate(db, platform, templateName, commentText) {
+  const { lastID } = await run(
+    db,
+    'INSERT INTO comment_templates (platform, template_name, comment_text) VALUES (?, ?, ?)',
+    [platform, templateName, commentText]
+  )
+  return lastID
 }
 
-export function deleteCommentTemplate(db, templateId) {
-  return new Promise((resolve, reject) => {
-    db.run('DELETE FROM comment_templates WHERE id = ?', [templateId], (err) => {
-      if (err) reject(err)
-      else resolve(true)
-    })
-  })
+export async function deleteCommentTemplate(db, templateId) {
+  await run(db, 'DELETE FROM comment_templates WHERE id = ?', [templateId])
+  return true
 }
 
-export function setActiveCommentTemplate(db, templateId) {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      // First, get the platform of the template
-      db.get('SELECT platform FROM comment_templates WHERE id = ?', [templateId], (err, row) => {
-        if (err) {
-          reject(err)
-          return
-        }
-        if (!row) {
-          reject(new Error('Template not found'))
-          return
-        }
+export async function setActiveCommentTemplate(db, templateId) {
+  const row = await get(db, 'SELECT platform FROM comment_templates WHERE id = ?', [templateId])
+  if (!row) throw new Error('Template not found')
 
-        // Deactivate all templates for this platform
-        db.run(
-          'UPDATE comment_templates SET is_active = 0 WHERE platform = ?',
-          [row.platform],
-          (err) => {
-            if (err) {
-              reject(err)
-              return
-            }
-            // Activate the selected template
-            db.run(
-              'UPDATE comment_templates SET is_active = 1 WHERE id = ?',
-              [templateId],
-              (err) => {
-                if (err) reject(err)
-                else resolve(true)
-              }
-            )
-          }
-        )
-      })
-    })
+  await transaction(db, async () => {
+    await run(db, 'UPDATE comment_templates SET is_active = 0 WHERE platform = ?', [row.platform])
+    await run(db, 'UPDATE comment_templates SET is_active = 1 WHERE id = ?', [templateId])
   })
+  return true
 }
-

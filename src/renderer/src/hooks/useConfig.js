@@ -2,36 +2,54 @@ import { useState, useEffect, useCallback } from 'react'
 import { DEFAULT_CONFIG } from '../utils/constants.js'
 import { validateConfigValue } from '../utils/validators.js'
 
+/** Mapping snake_case DB key → camelCase state key */
+const KEY_MAP = {
+  min_delay: 'minDelay',
+  max_delay: 'maxDelay',
+  limit: 'limit',
+  headless: 'headless',
+  consecutive_skips_limit: 'consecutiveSkipsLimit',
+  scroll_step: 'scrollStep',
+  max_scroll_attempts: 'maxScrollAttempts',
+  browser_user_agent: 'userAgent'
+}
+
+/** Parse raw string values dari DB ke tipe yang benar */
+function parseConfigData(raw) {
+  return {
+    minDelay: raw.min_delay ? parseInt(raw.min_delay, 10) : DEFAULT_CONFIG.MIN_DELAY,
+    maxDelay: raw.max_delay ? parseInt(raw.max_delay, 10) : DEFAULT_CONFIG.MAX_DELAY,
+    limit: raw.limit ? parseInt(raw.limit, 10) : DEFAULT_CONFIG.LIMIT,
+    headless: raw.headless === 'true',
+    consecutiveSkipsLimit: raw.consecutive_skips_limit
+      ? parseInt(raw.consecutive_skips_limit, 10)
+      : DEFAULT_CONFIG.CONSECUTIVE_SKIPS_LIMIT,
+    scrollStep: raw.scroll_step ? parseInt(raw.scroll_step, 10) : DEFAULT_CONFIG.SCROLL_STEP,
+    maxScrollAttempts: raw.max_scroll_attempts
+      ? parseInt(raw.max_scroll_attempts, 10)
+      : DEFAULT_CONFIG.MAX_SCROLL_ATTEMPTS,
+    userAgent: raw.browser_user_agent || DEFAULT_CONFIG.BROWSER_USER_AGENT
+  }
+}
+
 export function useConfig() {
   const [config, setConfig] = useState(DEFAULT_CONFIG)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   const loadConfigurations = useCallback(async () => {
-    if (!window.api || !window.api.getConfig) return
+    if (!window.api) return
 
     setLoading(true)
     setError(null)
     try {
-      const minVal = await window.api.getConfig('min_delay')
-      const maxVal = await window.api.getConfig('max_delay')
-      const limitVal = await window.api.getConfig('limit')
-      const headlessVal = await window.api.getConfig('headless')
-      const skipsLimitVal = await window.api.getConfig('consecutive_skips_limit')
-      const scrollStepVal = await window.api.getConfig('scroll_step')
-      const maxAttemptsVal = await window.api.getConfig('max_scroll_attempts')
-      const userAgentVal = await window.api.getConfig('browser_user_agent')
-
-      setConfig({
-        minDelay: minVal ? parseInt(minVal, 10) : DEFAULT_CONFIG.MIN_DELAY,
-        maxDelay: maxVal ? parseInt(maxVal, 10) : DEFAULT_CONFIG.MAX_DELAY,
-        limit: limitVal ? parseInt(limitVal, 10) : DEFAULT_CONFIG.LIMIT,
-        headless: headlessVal === 'true',
-        consecutiveSkipsLimit: skipsLimitVal ? parseInt(skipsLimitVal, 10) : DEFAULT_CONFIG.CONSECUTIVE_SKIPS_LIMIT,
-        scrollStep: scrollStepVal ? parseInt(scrollStepVal, 10) : DEFAULT_CONFIG.SCROLL_STEP,
-        maxScrollAttempts: maxAttemptsVal ? parseInt(maxAttemptsVal, 10) : DEFAULT_CONFIG.MAX_SCROLL_ATTEMPTS,
-        userAgent: userAgentVal || DEFAULT_CONFIG.BROWSER_USER_AGENT
-      })
+      // 1 round-trip via get-all-config, bukan 8 call terpisah
+      const result = await window.api.getAllConfig()
+      if (result?.success) {
+        setConfig(parseConfigData(result.data))
+      } else {
+        throw new Error(result?.error || 'Failed to load config')
+      }
     } catch (err) {
       console.error('Failed to load configs:', err)
       setError(err.message)
@@ -41,9 +59,8 @@ export function useConfig() {
   }, [])
 
   const handleSaveConfig = useCallback(async (key, value) => {
-    if (!window.api || !window.api.saveConfig) return false
+    if (!window.api?.saveConfig) return false
 
-    // Validate the value before saving
     if (!validateConfigValue(key, value)) {
       setError(`Invalid value for ${key}`)
       return false
@@ -52,20 +69,10 @@ export function useConfig() {
     setLoading(true)
     setError(null)
     try {
-      await window.api.saveConfig(key, value.toString())
-      // Map snake_case key to camelCase for state update
-      const keyMapping = {
-        'min_delay': 'minDelay',
-        'max_delay': 'maxDelay',
-        'limit': 'limit',
-        'headless': 'headless',
-        'consecutive_skips_limit': 'consecutiveSkipsLimit',
-        'scroll_step': 'scrollStep',
-        'max_scroll_attempts': 'maxScrollAttempts',
-        'browser_user_agent': 'userAgent'
-      }
-      const stateKey = keyMapping[key] || key
-      // Update local state with correct key
+      const result = await window.api.saveConfig(key, value.toString())
+      if (!result?.success) throw new Error(result?.error || 'Save failed')
+
+      const stateKey = KEY_MAP[key] || key
       setConfig(prev => ({ ...prev, [stateKey]: value }))
       return true
     } catch (err) {
@@ -81,11 +88,5 @@ export function useConfig() {
     loadConfigurations()
   }, [loadConfigurations])
 
-  return {
-    config,
-    loading,
-    error,
-    loadConfigurations,
-    handleSaveConfig
-  }
+  return { config, loading, error, loadConfigurations, handleSaveConfig }
 }

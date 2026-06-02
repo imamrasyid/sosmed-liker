@@ -9,442 +9,288 @@ import { ProxyManagement } from "./ProxyManagement.jsx";
 import { BatchJobs } from "./BatchJobs.jsx";
 import { CommentTemplates } from "./CommentTemplates.jsx";
 
+const TABS = [
+  { id: "config", label: "Konfigurasi" },
+  { id: "profiles", label: "Multi-Profil" },
+  { id: "lists", label: "Blacklist/Whitelist" },
+  { id: "proxy", label: "Proxy" },
+  { id: "batch", label: "Batch Jobs" },
+  { id: "comments", label: "Komentar" },
+];
+
+function SliderRow({
+  label,
+  description,
+  valueLabel,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold text-slate-300">{label}</p>
+          {description && (
+            <p className="text-[10px] text-slate-600 mt-0.5">{description}</p>
+          )}
+        </div>
+        <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-lg font-mono shrink-0">
+          {valueLabel}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={onChange}
+        className="w-full accent-indigo-500 h-1.5 rounded-full cursor-pointer"
+      />
+      <div className="flex justify-between text-[9px] text-slate-700 font-mono">
+        <span>{min}</span>
+        <span>{max}</span>
+      </div>
+    </div>
+  );
+}
+
 export function Settings() {
   const { config, handleSaveConfig } = useConfig();
   const { settingsSubTab, setSettingsSubTab, showToast } = useAppContext();
   const { t } = useTranslation();
-
-  const [localConfig, setLocalConfig] = React.useState(config);
+  const [local, setLocal] = React.useState(config);
 
   React.useEffect(() => {
-    setLocalConfig(config);
+    setLocal(config);
   }, [config]);
 
-  const handleConfigChange = async (key, value) => {
-    setLocalConfig((prev) => ({ ...prev, [key]: value }));
-    const success = await handleSaveConfig(key, value);
-    if (success) {
-      showToast(t("toast.configSaved"), "success");
-    } else {
-      showToast(t("toast.configSaveFailed"), "error");
-    }
+  const save = async (key, value) => {
+    setLocal((p) => ({ ...p, [snakeToCamel(key)]: value }));
+    const ok = await handleSaveConfig(key, value);
+    if (ok) showToast(t("toast.configSaved"), "success");
+    else showToast(t("toast.configSaveFailed"), "error");
   };
 
+  const snakeToCamel = (k) => k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+
   return (
-    <div className="flex-1 flex flex-col gap-6 max-w-6xl mx-auto w-full animate-fadeIn">
+    <div className="flex-1 flex flex-col gap-5 max-w-5xl mx-auto w-full">
       <div>
-        <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-indigo-400 tracking-tight">
-          {t("settings.title")}
-        </h2>
-        <p className="text-slate-400 text-sm mt-1">
+        <h1 className="text-xl font-black text-white">{t("settings.title")}</h1>
+        <p className="text-xs text-slate-500 mt-0.5">
           {t("settings.description")}
         </p>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-2 border-b border-slate-800/50">
-        <button
-          onClick={() => setSettingsSubTab("config")}
-          className={`px-4 py-2 text-sm font-bold transition-all border-b-2 -mb-px
-            ${
-              settingsSubTab === "config"
-                ? "text-indigo-400 border-indigo-400"
-                : "text-slate-400 border-transparent hover:text-slate-300"
-            }
-          `}
-        >
-          {t("settings.config")}
-        </button>
-        <button
-          onClick={() => setSettingsSubTab("lists")}
-          className={`px-4 py-2 text-sm font-bold transition-all border-b-2 -mb-px
-            ${
-              settingsSubTab === "lists"
-                ? "text-indigo-400 border-indigo-400"
-                : "text-slate-400 border-transparent hover:text-slate-300"
-            }
-          `}
-        >
-          {t("settings.blacklistWhitelist")}
-        </button>
-        <button
-          onClick={() => setSettingsSubTab("profiles")}
-          className={`px-4 py-2 text-sm font-bold transition-all border-b-2 -mb-px
-            ${
-              settingsSubTab === "profiles"
-                ? "text-indigo-400 border-indigo-400"
-                : "text-slate-400 border-transparent hover:text-slate-300"
-            }
-          `}
-        >
-          {t("settings.multiProfile")}
-        </button>
-        <button
-          onClick={() => setSettingsSubTab("proxy")}
-          className={`px-4 py-2 text-sm font-bold transition-all border-b-2 -mb-px
-            ${
-              settingsSubTab === "proxy"
-                ? "text-indigo-400 border-indigo-400"
-                : "text-slate-400 border-transparent hover:text-slate-300"
-            }
-          `}
-        >
-          {t("settings.proxy")}
-        </button>
-        <button
-          onClick={() => setSettingsSubTab("batch")}
-          className={`px-4 py-2 text-sm font-bold transition-all border-b-2 -mb-px
-            ${
-              settingsSubTab === "batch"
-                ? "text-indigo-400 border-indigo-400"
-                : "text-slate-400 border-transparent hover:text-slate-300"
-            }
-          `}
-        >
-          {t("settings.batchJobs")}
-        </button>
-        <button
-          onClick={() => setSettingsSubTab("comments")}
-          className={`px-4 py-2 text-sm font-bold transition-all border-b-2 -mb-px
-            ${
-              settingsSubTab === "comments"
-                ? "text-indigo-400 border-indigo-400"
-                : "text-slate-400 border-transparent hover:text-slate-300"
-            }
-          `}
-        >
-          {t("settings.comments")}
-        </button>
+      {/* Tab nav */}
+      <div className="flex items-center gap-0.5 border-b border-white/[0.06] pb-0">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setSettingsSubTab(tab.id)}
+            className={`px-4 py-2 text-xs font-bold transition-all border-b-2 -mb-px ${
+              settingsSubTab === tab.id
+                ? "text-indigo-400 border-indigo-500"
+                : "text-slate-600 border-transparent hover:text-slate-400"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Tab Content */}
-      {settingsSubTab === "config" ? (
-        <>
-          {/* Informative tips box */}
-          <div className="bg-slate-900/20 border border-slate-800 rounded-2xl p-5 flex gap-3 text-xs leading-relaxed text-slate-400 shadow-sm">
-            <span className="text-md">💡</span>
-            <div>
-              <h4 className="font-bold text-slate-300 uppercase tracking-wider text-[10px] mb-1">
-                {t("settings.securityTips")}
-              </h4>
-              {t("settings.securityTipsDesc")}
-            </div>
-          </div>
-
-          {/* Slider Controls Wrapper */}
-          <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl p-6 border border-slate-800/80 flex flex-col gap-8 shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/2 rounded-full blur-2xl pointer-events-none"></div>
-
-            {/* SECTION 1: Kecepatan & Jeda */}
-            <div className="flex flex-col gap-5">
-              <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest border-b border-slate-800/50 pb-2 flex items-center gap-2">
-                <span>⚡</span> {t("settings.speedDelaySection")}
-              </h3>
-
-              {/* Rentang Jeda */}
-              <div className="flex flex-col gap-3.5">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="text-xs font-bold text-slate-200">
-                      {t("settings.delayRange")}
-                    </span>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {t("settings.delayRangeDesc")}
-                    </p>
-                  </div>
-                  <span className="px-2.5 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono text-xs font-bold rounded-lg">
-                    {localConfig.minDelay / 1000}s -{" "}
-                    {localConfig.maxDelay / 1000}s
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Minimum Delay */}
-                  <div className="flex flex-col gap-2">
-                    <div className="flex justify-between text-[11px] font-semibold text-slate-400">
-                      <span>{t("settings.minDelay")}</span>
-                      <span>
-                        {localConfig.minDelay / 1000} {t("settings.seconds")}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1000"
-                      max="10000"
-                      step="1000"
-                      value={localConfig.minDelay}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        setLocalConfig((prev) => ({ ...prev, minDelay: val }));
-                        handleConfigChange("min_delay", val);
-                        if (val > localConfig.maxDelay) {
-                          setLocalConfig((prev) => ({
-                            ...prev,
-                            maxDelay: val + 1000,
-                          }));
-                          handleConfigChange("max_delay", val + 1000);
-                        }
-                      }}
-                      className="w-full accent-indigo-500 bg-slate-950 h-1.5 rounded-lg cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Maximum Delay */}
-                  <div className="flex flex-col gap-2">
-                    <div className="flex justify-between text-[11px] font-semibold text-slate-400">
-                      <span>{t("settings.maxDelay")}</span>
-                      <span>
-                        {localConfig.maxDelay / 1000} {t("settings.seconds")}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="2000"
-                      max="20000"
-                      step="1000"
-                      value={localConfig.maxDelay}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        if (val < localConfig.minDelay) return;
-                        setLocalConfig((prev) => ({ ...prev, maxDelay: val }));
-                        handleConfigChange("max_delay", val);
-                      }}
-                      className="w-full accent-indigo-500 bg-slate-950 h-1.5 rounded-lg cursor-pointer"
-                    />
-                  </div>
-                </div>
-              </div>
+      {/* Tab content */}
+      <div className="flex-1">
+        {settingsSubTab === "config" && (
+          <div className="flex flex-col gap-6">
+            {/* Security tip */}
+            <div className="flex items-start gap-3 px-4 py-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl">
+              <svg
+                className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <p className="text-[11px] text-slate-400">
+                {t("settings.securityTipsDesc")}
+              </p>
             </div>
 
-            {/* SECTION 2: Batas & Pemindaian */}
-            <div className="flex flex-col gap-5 border-t border-slate-800/40 pt-5">
-              <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest border-b border-slate-800/50 pb-2 flex items-center gap-2">
-                <span>🔍</span> {t("settings.scanningSection")}
-              </h3>
+            {/* Section 1: Speed & Delay */}
+            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-5">
+              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                {t("settings.speedDelaySection")}
+              </p>
 
               <div className="grid grid-cols-2 gap-6">
-                {/* Post Limit */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-400">
-                    <div>
-                      <span className="font-bold text-slate-200">
-                        {t("settings.postLimitPerProfile")}
-                      </span>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        {t("settings.postLimitDesc")}
-                      </p>
-                    </div>
-                    <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono text-[11px] font-bold rounded-lg">
-                      {localConfig.limit} {t("settings.post")}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="5"
-                    max="100"
-                    step="5"
-                    value={localConfig.limit}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setLocalConfig((prev) => ({ ...prev, limit: val }));
-                      handleConfigChange("limit", val);
-                      if (localConfig.consecutiveSkipsLimit > val) {
-                        setLocalConfig((prev) => ({
-                          ...prev,
-                          consecutiveSkipsLimit: val,
-                        }));
-                        handleConfigChange("consecutive_skips_limit", val);
-                      }
-                    }}
-                    className="w-full accent-indigo-500 bg-slate-950 h-1.5 rounded-lg cursor-pointer"
-                  />
-                </div>
-
-                {/* Consecutive Skips Limit */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-400">
-                    <div>
-                      <span className="font-bold text-slate-200">
-                        {t("settings.consecutiveSkipsLimit")}
-                      </span>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        {t("settings.consecutiveSkipsDesc")}
-                      </p>
-                    </div>
-                    <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono text-[11px] font-bold rounded-lg">
-                      {localConfig.consecutiveSkipsLimit} {t("settings.skips")}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="3"
-                    max={localConfig.limit}
-                    step="1"
-                    value={localConfig.consecutiveSkipsLimit}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setLocalConfig((prev) => ({
-                        ...prev,
-                        consecutiveSkipsLimit: val,
-                      }));
-                      handleConfigChange("consecutive_skips_limit", val);
-                    }}
-                    className="w-full accent-indigo-500 bg-slate-950 h-1.5 rounded-lg cursor-pointer"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6 mt-2">
-                {/* Scroll Step (Pixel Distance) */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-400">
-                    <div>
-                      <span className="font-bold text-slate-200">
-                        {t("settings.scrollStep")}
-                      </span>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        {t("settings.scrollStepDesc")}
-                      </p>
-                    </div>
-                    <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono text-[11px] font-bold rounded-lg">
-                      {localConfig.scrollStep}px
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="500"
-                    max="1500"
-                    step="100"
-                    value={localConfig.scrollStep}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setLocalConfig((prev) => ({ ...prev, scrollStep: val }));
-                      handleConfigChange("scroll_step", val);
-                    }}
-                    className="w-full accent-indigo-500 bg-slate-950 h-1.5 rounded-lg cursor-pointer"
-                  />
-                </div>
-
-                {/* Max Scroll Attempts */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-400">
-                    <div>
-                      <span className="font-bold text-slate-200">
-                        {t("settings.maxScrollAttempts")}
-                      </span>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        {t("settings.maxScrollAttemptsDesc")}
-                      </p>
-                    </div>
-                    <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono text-[11px] font-bold rounded-lg">
-                      {localConfig.maxScrollAttempts} {t("settings.times")}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="10"
-                    max="40"
-                    step="5"
-                    value={localConfig.maxScrollAttempts}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setLocalConfig((prev) => ({
-                        ...prev,
-                        maxScrollAttempts: val,
-                      }));
-                      handleConfigChange("max_scroll_attempts", val);
-                    }}
-                    className="w-full accent-indigo-500 bg-slate-950 h-1.5 rounded-lg cursor-pointer"
-                  />
-                </div>
+                <SliderRow
+                  label={t("settings.minDelay")}
+                  description={t("settings.delayRangeDesc")}
+                  valueLabel={`${local.minDelay / 1000}s`}
+                  min={1000}
+                  max={10000}
+                  step={500}
+                  value={local.minDelay}
+                  onChange={(e) => {
+                    const v = +e.target.value;
+                    setLocal((p) => ({ ...p, minDelay: v }));
+                    handleSaveConfig("min_delay", v);
+                    if (v > local.maxDelay)
+                      handleSaveConfig("max_delay", v + 1000);
+                  }}
+                />
+                <SliderRow
+                  label={t("settings.maxDelay")}
+                  description={null}
+                  valueLabel={`${local.maxDelay / 1000}s`}
+                  min={2000}
+                  max={20000}
+                  step={500}
+                  value={local.maxDelay}
+                  onChange={(e) => {
+                    const v = +e.target.value;
+                    if (v < local.minDelay) return;
+                    setLocal((p) => ({ ...p, maxDelay: v }));
+                    handleSaveConfig("max_delay", v);
+                  }}
+                />
               </div>
             </div>
 
-            {/* SECTION 3: Mode Browser & Privasi */}
-            <div className="flex flex-col gap-5 border-t border-slate-800/40 pt-5">
-              <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest border-b border-slate-800/50 pb-2 flex items-center gap-2">
-                <span>🛡️</span> {t("settings.browserSection")}
-              </h3>
+            {/* Section 2: Scan params */}
+            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-5">
+              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                {t("settings.scanningSection")}
+              </p>
+              <div className="grid grid-cols-2 gap-6">
+                <SliderRow
+                  label={t("settings.postLimitPerProfile")}
+                  description={t("settings.postLimitDesc")}
+                  valueLabel={`${local.limit} post`}
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={local.limit}
+                  onChange={(e) => {
+                    const v = +e.target.value;
+                    setLocal((p) => ({ ...p, limit: v }));
+                    handleSaveConfig("limit", v);
+                  }}
+                />
+                <SliderRow
+                  label={t("settings.consecutiveSkipsLimit")}
+                  description={t("settings.consecutiveSkipsDesc")}
+                  valueLabel={`${local.consecutiveSkipsLimit} skip`}
+                  min={3}
+                  max={20}
+                  step={1}
+                  value={local.consecutiveSkipsLimit}
+                  onChange={(e) => {
+                    const v = +e.target.value;
+                    setLocal((p) => ({ ...p, consecutiveSkipsLimit: v }));
+                    handleSaveConfig("consecutive_skips_limit", v);
+                  }}
+                />
+                <SliderRow
+                  label={t("settings.scrollStep")}
+                  description={t("settings.scrollStepDesc")}
+                  valueLabel={`${local.scrollStep}px`}
+                  min={300}
+                  max={1500}
+                  step={100}
+                  value={local.scrollStep}
+                  onChange={(e) => {
+                    const v = +e.target.value;
+                    setLocal((p) => ({ ...p, scrollStep: v }));
+                    handleSaveConfig("scroll_step", v);
+                  }}
+                />
+                <SliderRow
+                  label={t("settings.maxScrollAttempts")}
+                  description={t("settings.maxScrollAttemptsDesc")}
+                  valueLabel={`${local.maxScrollAttempts}×`}
+                  min={5}
+                  max={50}
+                  step={5}
+                  value={local.maxScrollAttempts}
+                  onChange={(e) => {
+                    const v = +e.target.value;
+                    setLocal((p) => ({ ...p, maxScrollAttempts: v }));
+                    handleSaveConfig("max_scroll_attempts", v);
+                  }}
+                />
+              </div>
+            </div>
 
-              <div className="flex justify-between items-center">
+            {/* Section 3: Browser */}
+            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-5">
+              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                {t("settings.browserSection")}
+              </p>
+
+              {/* Headless toggle */}
+              <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-slate-200">
+                  <p className="text-xs font-bold text-slate-300">
                     {t("settings.headlessMode")}
-                  </span>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  </p>
+                  <p className="text-[10px] text-slate-600 mt-0.5">
                     {t("settings.headlessModeDesc")}
                   </p>
                 </div>
-
                 <button
-                  onClick={() => {
-                    const nextVal = !localConfig.headless;
-                    setLocalConfig((prev) => ({ ...prev, headless: nextVal }));
-                    handleConfigChange("headless", nextVal);
-                  }}
-                  className={`w-12 h-6 rounded-full transition-all duration-300 relative border flex items-center px-1
-                ${
-                  localConfig.headless
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 border-indigo-400/20"
-                    : "bg-slate-950 border-slate-800"
-                }
-              `}
+                  onClick={() => save("headless", !local.headless)}
+                  className={`w-11 h-6 rounded-full transition-all duration-300 relative border flex items-center px-1 shrink-0 ${
+                    local.headless
+                      ? "bg-indigo-600 border-indigo-400/20"
+                      : "bg-white/[0.05] border-white/[0.08]"
+                  }`}
                 >
                   <span
-                    className={`w-4 h-4 rounded-full transition-all duration-300 shadow-lg
-                ${
-                  localConfig.headless
-                    ? "translate-x-6 bg-white shadow-glow shadow-white/30"
-                    : "translate-x-0 bg-slate-600"
-                }
-              `}
-                  ></span>
+                    className={`w-4 h-4 rounded-full transition-all duration-300 shadow ${local.headless ? "translate-x-5 bg-white" : "translate-x-0 bg-slate-600"}`}
+                  />
                 </button>
               </div>
 
-              <div className="flex flex-col gap-2 border-t border-slate-800/20 pt-4">
-                <span className="text-xs font-bold text-slate-200">
-                  {t("settings.browserUserAgent")}
-                </span>
-                <p className="text-[11px] text-slate-500">
-                  {t("settings.browserUserAgentDesc")}
-                </p>
-
-                <div className="grid grid-cols-4 gap-3 mt-1.5">
+              {/* User agent */}
+              <div className="flex flex-col gap-2">
+                <div>
+                  <p className="text-xs font-bold text-slate-300">
+                    {t("settings.browserUserAgent")}
+                  </p>
+                  <p className="text-[10px] text-slate-600 mt-0.5">
+                    {t("settings.browserUserAgentDesc")}
+                  </p>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
                   {[
-                    {
-                      name: USER_AGENTS.DEFAULT,
-                      label: t("settings.playwrightDefault"),
-                    },
-                    {
-                      name: USER_AGENTS.CHROME_WINDOWS,
-                      label: t("settings.chromeWindows"),
-                    },
-                    {
-                      name: USER_AGENTS.SAFARI_MACOS,
-                      label: t("settings.safariMacos"),
-                    },
+                    { name: USER_AGENTS.DEFAULT, label: "Default" },
+                    { name: USER_AGENTS.CHROME_WINDOWS, label: "Chrome / Win" },
+                    { name: USER_AGENTS.SAFARI_MACOS, label: "Safari / Mac" },
                     {
                       name: USER_AGENTS.FIREFOX_LINUX,
-                      label: t("settings.firefoxLinux"),
+                      label: "Firefox / Linux",
                     },
                   ].map((ua) => (
                     <button
                       key={ua.name}
-                      onClick={() => {
-                        setLocalConfig((prev) => ({
-                          ...prev,
-                          userAgent: ua.name,
-                        }));
-                        handleConfigChange("browser_user_agent", ua.name);
-                      }}
-                      className={`px-3 py-2 rounded-xl text-[10.5px] font-bold border transition-all duration-200 text-center
-                    ${
-                      localConfig.userAgent === ua.name
-                        ? "bg-indigo-600/10 border-indigo-500 text-indigo-300 font-extrabold shadow-md shadow-indigo-500/5"
-                        : "bg-slate-950 border-slate-800/80 text-slate-400 hover:border-slate-700 hover:text-slate-350"
-                    }
-                  `}
+                      onClick={() => save("browser_user_agent", ua.name)}
+                      className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition-all text-center ${
+                        local.userAgent === ua.name
+                          ? "bg-indigo-500/10 border-indigo-500/40 text-indigo-300"
+                          : "bg-white/[0.02] border-white/[0.06] text-slate-500 hover:text-slate-300 hover:border-white/10"
+                      }`}
                     >
                       {ua.label}
                     </button>
@@ -453,18 +299,14 @@ export function Settings() {
               </div>
             </div>
           </div>
-        </>
-      ) : settingsSubTab === "lists" ? (
-        <ProfileLists />
-      ) : settingsSubTab === "profiles" ? (
-        <ProfileManagement />
-      ) : settingsSubTab === "proxy" ? (
-        <ProxyManagement />
-      ) : settingsSubTab === "batch" ? (
-        <BatchJobs />
-      ) : (
-        <CommentTemplates />
-      )}
+        )}
+
+        {settingsSubTab === "lists" && <ProfileLists />}
+        {settingsSubTab === "profiles" && <ProfileManagement />}
+        {settingsSubTab === "proxy" && <ProxyManagement />}
+        {settingsSubTab === "batch" && <BatchJobs />}
+        {settingsSubTab === "comments" && <CommentTemplates />}
+      </div>
     </div>
   );
 }

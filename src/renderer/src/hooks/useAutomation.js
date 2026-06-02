@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react'
-import { PLATFORMS } from '../utils/constants.js'
 
 export function useAutomation() {
   const [isRunning, setIsRunning] = useState(false)
@@ -17,7 +16,7 @@ export function useAutomation() {
 
     setIsRunning(true)
     setLogs([{ type: 'SYSTEM', message: `Memulai otomatisasi untuk target: ${targetUrl}...`, time: new Date().toLocaleTimeString() }])
-    
+
     try {
       const response = await window.api.startAutomation(targetUrl)
       if (!response.success) {
@@ -27,10 +26,10 @@ export function useAutomation() {
         return false
       }
       return true
-    } catch (error) {
-      setLogs(prev => [...prev, { type: 'ERROR', message: error.message, time: new Date().toLocaleTimeString() }])
+    } catch (err) {
+      setLogs(prev => [...prev, { type: 'ERROR', message: err.message, time: new Date().toLocaleTimeString() }])
       setIsRunning(false)
-      setError(error.message)
+      setError(err.message)
       return false
     }
   }, [isRunning])
@@ -39,17 +38,20 @@ export function useAutomation() {
     try {
       setLogs(prev => [...prev, { type: 'SYSTEM', message: 'Menghentikan proses otomatisasi...', time: new Date().toLocaleTimeString() }])
       await window.api.stopAutomation()
-    } catch (error) {
-      console.error(error)
-      setError(error.message)
+    } catch (err) {
+      console.error(err)
+      setError(err.message)
     }
   }, [])
 
   useEffect(() => {
-    let unsubscribe
-    if (window.api && window.api.onAutomationLog) {
-      unsubscribe = window.api.onAutomationLog((message) => {
-        // Parse log type
+    if (!window.api) return
+
+    const unsubscribers = []
+
+    // Log stream dari main process
+    if (window.api.onAutomationLog) {
+      const unsub = window.api.onAutomationLog((message) => {
         let type = 'SYSTEM'
         let cleanMsg = message
 
@@ -68,15 +70,30 @@ export function useAutomation() {
         }
 
         setLogs(prev => [...prev, { type, message: cleanMsg, time: new Date().toLocaleTimeString() }])
-
-        if (message.includes('Proses otomatisasi selesai') || message.includes('Proses dihentikan secara manual')) {
-          setIsRunning(false)
-        }
       })
+      unsubscribers.push(unsub)
+    }
+
+    // Event selesai — dedicated, tidak bergantung pada string log
+    if (window.api.onAutomationDone) {
+      const unsub = window.api.onAutomationDone(() => {
+        setIsRunning(false)
+        setLogs(prev => [...prev, { type: 'SYSTEM', message: 'Proses selesai.', time: new Date().toLocaleTimeString() }])
+      })
+      unsubscribers.push(unsub)
+    }
+
+    // Event dihentikan manual
+    if (window.api.onAutomationStopped) {
+      const unsub = window.api.onAutomationStopped(() => {
+        setIsRunning(false)
+        setLogs(prev => [...prev, { type: 'SYSTEM', message: 'Proses dihentikan.', time: new Date().toLocaleTimeString() }])
+      })
+      unsubscribers.push(unsub)
     }
 
     return () => {
-      if (unsubscribe) unsubscribe()
+      unsubscribers.forEach(unsub => { if (unsub) unsub() })
     }
   }, [])
 

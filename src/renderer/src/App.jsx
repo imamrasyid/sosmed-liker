@@ -49,7 +49,7 @@ function AppContent() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans antialiased overflow-hidden select-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-950/20 via-slate-950 to-slate-950">
+    <div className="flex h-screen bg-[#0c1220] text-slate-100 font-sans antialiased overflow-hidden select-none">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-full overflow-hidden no-drag-region">

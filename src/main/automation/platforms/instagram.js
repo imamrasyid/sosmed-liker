@@ -1,9 +1,6 @@
 import { isPostLiked, saveLikedPost, getActiveCommentTemplate } from '../../db/queries.js'
 import { retryWithBackoff, RetryConfig, isRetryableError } from '../../utils/retry.js'
-
-function randomDelay(min = 2000, max = 5000) {
-  return new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min))
-}
+import { randomDelay } from '../../utils/helpers.js'
 
 export async function postComment(page, commentText, onLog) {
   try {
@@ -98,7 +95,6 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
     while (toLikeList.length < limit && consecutiveSkips < consecutiveSkipsLimit && scrollAttempts < maxScrollAttempts) {
       try {
         const elements = await page.$$('a[href*="/p/"], a[href*="/reel/"]')
-        let foundNewOnThisScroll = false
 
         for (const el of elements) {
           const href = await el.getAttribute('href')
@@ -109,7 +105,6 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
 
           if (processedShortcodes.has(postId)) continue
           processedShortcodes.add(postId)
-          foundNewOnThisScroll = true
 
           const alreadyLiked = await isPostLiked(db, 'instagram', postId)
           if (alreadyLiked) {

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
+import { useAppContext } from "../../context/AppContext.jsx";
+import { ConfirmModal } from "../shared/ConfirmModal.jsx";
 import { useTranslation } from "react-i18next";
 
 export function ProxyManagement() {
   const { t } = useTranslation();
+  const { showToast } = useAppContext();
   const [proxies, setProxies] = useState([]);
   const [activeProxy, setActiveProxy] = useState(null);
   const [proxyType, setProxyType] = useState("http");
@@ -11,6 +14,7 @@ export function ProxyManagement() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
 
   useEffect(() => {
     loadProxies();
@@ -19,179 +23,146 @@ export function ProxyManagement() {
   const loadProxies = async () => {
     setLoading(true);
     try {
-      const [proxiesResult, activeResult] = await Promise.all([
+      const [pRes, aRes] = await Promise.all([
         window.api.getProxies(),
         window.api.getActiveProxy(),
       ]);
-
-      if (proxiesResult.success) {
-        setProxies(proxiesResult.data || []);
-      }
-      if (activeResult.success) {
-        setActiveProxy(activeResult.data);
-      }
-    } catch (err) {
-      console.error("Failed to load proxies:", err);
+      if (pRes.success) setProxies(pRes.data ?? []);
+      if (aRes.success) setActiveProxy(aRes.data);
+    } catch {
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddProxy = async () => {
+  const handleAdd = async () => {
     if (!host.trim()) {
-      alert(t("proxyManagement.alertHostRequired"));
+      showToast(t("proxyManagement.alertHostRequired"), "error");
       return;
     }
     if (!port.trim()) {
-      alert(t("proxyManagement.alertPortRequired"));
+      showToast(t("proxyManagement.alertPortRequired"), "error");
       return;
     }
-
     setLoading(true);
     try {
-      const result = await window.api.saveProxy(
+      const r = await window.api.saveProxy(
         proxyType,
         host,
         port,
         username || null,
         password || null,
       );
-      if (result.success) {
+      if (r.success) {
         setHost("");
         setPort("");
         setUsername("");
         setPassword("");
-        loadProxies();
-        alert(t("proxyManagement.alertAddSuccess"));
+        await loadProxies();
+        showToast(t("proxyManagement.alertAddSuccess"), "success");
       } else {
-        alert(result.error || t("proxyManagement.alertAddFailed"));
+        showToast(r.error ?? t("proxyManagement.alertAddFailed"), "error");
       }
     } catch (err) {
-      alert(t("proxyManagement.alertAddFailed") + ": " + err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSetActive = async (proxyId) => {
+  const handleSetActive = async (id) => {
     setLoading(true);
     try {
-      const result = await window.api.setActiveProxy(proxyId);
-      if (result.success) {
-        loadProxies();
+      const r = await window.api.setActiveProxy(id);
+      if (r.success) {
+        await loadProxies();
+        showToast("Proxy diaktifkan", "success");
       } else {
-        alert(result.error || t("proxyManagement.alertSetActiveFailed"));
+        showToast(
+          r.error ?? t("proxyManagement.alertSetActiveFailed"),
+          "error",
+        );
       }
     } catch (err) {
-      alert(t("proxyManagement.alertSetActiveFailed") + ": " + err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (proxyId) => {
-    if (!confirm(t("proxyManagement.alertDeleteConfirm"))) return;
-
+  const handleDelete = async (id) => {
     setLoading(true);
     try {
-      const result = await window.api.deleteProxy(proxyId);
-      if (result.success) {
-        loadProxies();
+      const r = await window.api.deleteProxy(id);
+      if (r.success) {
+        await loadProxies();
+        showToast("Proxy dihapus", "success");
       } else {
-        alert(result.error || t("proxyManagement.alertDeleteFailed"));
+        showToast(r.error ?? t("proxyManagement.alertDeleteFailed"), "error");
       }
     } catch (err) {
-      alert(t("proxyManagement.alertDeleteFailed") + ": " + err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
+      setDeleteModal({ open: false, id: null });
     }
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h3 className="text-xl font-bold text-white mb-2">
-          {t("proxyManagement.title")}
-        </h3>
-        <p className="text-slate-400 text-sm">
-          {t("proxyManagement.description")}
-        </p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <ConfirmModal
+        open={deleteModal.open}
+        title="Hapus Proxy?"
+        message="Proxy ini akan dihapus permanen."
+        confirmLabel="Ya, Hapus"
+        onConfirm={() => handleDelete(deleteModal.id)}
+        onCancel={() => setDeleteModal({ open: false, id: null })}
+      />
 
-      {/* Info */}
-      <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <span className="text-lg">ℹ️</span>
-          <div>
-            <p className="text-sm font-bold text-blue-300">
-              {t("proxyManagement.info")}
-            </p>
-            <ul className="text-xs text-blue-400/90 mt-1 space-y-1">
-              <li>• {t("proxyManagement.info1")}</li>
-              <li>• {t("proxyManagement.info2")}</li>
-              <li>• {t("proxyManagement.info3")}</li>
-              <li>• {t("proxyManagement.info4")}</li>
-            </ul>
-          </div>
+      {/* Active proxy status */}
+      <div
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${activeProxy ? "bg-emerald-500/8 border-emerald-500/20" : "bg-white/[0.02] border-white/[0.06]"}`}
+      >
+        <span
+          className={`w-2 h-2 rounded-full shrink-0 ${activeProxy ? "bg-emerald-500" : "bg-slate-700"}`}
+        />
+        <div>
+          <p
+            className={`text-xs font-bold ${activeProxy ? "text-emerald-300" : "text-slate-500"}`}
+          >
+            {activeProxy
+              ? `Proxy Aktif: ${activeProxy.proxy_type.toUpperCase()}://${activeProxy.host}:${activeProxy.port}`
+              : t("proxyManagement.noActiveProxy")}
+          </p>
+          <p className="text-[10px] text-slate-600">
+            {activeProxy
+              ? t("proxyManagement.allConnectionsThroughProxy")
+              : t("proxyManagement.directConnection")}
+          </p>
         </div>
       </div>
 
-      {/* Active Proxy Indicator */}
-      {activeProxy ? (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-            <div>
-              <p className="text-sm font-bold text-emerald-300">
-                {t("proxyManagement.activeProxy", {
-                  type: activeProxy.proxy_type.toUpperCase(),
-                  host: activeProxy.host,
-                  port: activeProxy.port,
-                })}
-              </p>
-              <p className="text-xs text-emerald-400/90">
-                {t("proxyManagement.allConnectionsThroughProxy")}
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full bg-slate-600"></div>
-            <div>
-              <p className="text-sm font-bold text-slate-300">
-                {t("proxyManagement.noActiveProxy")}
-              </p>
-              <p className="text-xs text-slate-400">
-                {t("proxyManagement.directConnection")}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Proxy Form */}
-      <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-slate-800/80 p-5">
-        <h4 className="text-sm font-bold text-slate-200 mb-4">
+      {/* Add form */}
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-3">
+        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
           {t("proxyManagement.addNewProxy")}
-        </h4>
+        </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
               {t("proxyManagement.proxyType")}
             </label>
             <select
               value={proxyType}
               onChange={(e) => setProxyType(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
+              className="w-full bg-[#0c1220] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
             >
-              <option value="http">{t("proxyManagement.http")}</option>
-              <option value="socks5">{t("proxyManagement.socks5")}</option>
+              <option value="http">HTTP</option>
+              <option value="socks5">SOCKS5</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
               {t("proxyManagement.host")}
             </label>
             <input
@@ -199,11 +170,11 @@ export function ProxyManagement() {
               value={host}
               onChange={(e) => setHost(e.target.value)}
               placeholder={t("proxyManagement.hostPlaceholder")}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 placeholder-slate-600"
+              className="w-full bg-[#0c1220] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
               {t("proxyManagement.port")}
             </label>
             <input
@@ -211,11 +182,11 @@ export function ProxyManagement() {
               value={port}
               onChange={(e) => setPort(e.target.value)}
               placeholder={t("proxyManagement.portPlaceholder")}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 placeholder-slate-600"
+              className="w-full bg-[#0c1220] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
               {t("proxyManagement.username")}
             </label>
             <input
@@ -223,11 +194,11 @@ export function ProxyManagement() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder={t("proxyManagement.usernamePlaceholder")}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 placeholder-slate-600"
+              className="w-full bg-[#0c1220] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
             />
           </div>
           <div className="col-span-2">
-            <label className="block text-xs font-bold text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
               {t("proxyManagement.password")}
             </label>
             <input
@@ -235,14 +206,14 @@ export function ProxyManagement() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t("proxyManagement.passwordPlaceholder")}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 placeholder-slate-600"
+              className="w-full bg-[#0c1220] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
             />
           </div>
         </div>
         <button
-          onClick={handleAddProxy}
+          onClick={handleAdd}
           disabled={loading}
-          className="mt-4 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white rounded-xl text-sm font-bold transition-all"
+          className="self-start px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all"
         >
           {loading
             ? t("proxyManagement.adding")
@@ -250,68 +221,60 @@ export function ProxyManagement() {
         </button>
       </div>
 
-      {/* Proxies List */}
-      <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-slate-800/80 overflow-hidden">
-        <div className="p-4 border-b border-slate-800/50">
-          <h4 className="text-sm font-bold text-slate-200">
-            {t("proxyManagement.proxyList")}
-            <span className="ml-2 text-xs text-slate-400">
-              ({proxies.length} {t("proxyManagement.proxyCount")})
-            </span>
-          </h4>
+      {/* Proxy list */}
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-white/[0.06]">
+          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+            {t("proxyManagement.proxyList")} ({proxies.length})
+          </p>
         </div>
-
         {loading ? (
-          <div className="p-8 text-center text-slate-400">
-            {t("proxyManagement.loading")}
+          <div className="p-8 text-center text-slate-600 text-xs">
+            Memuat...
           </div>
         ) : proxies.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">
+          <div className="p-8 text-center text-slate-700 text-xs">
             {t("proxyManagement.noProxies")}
           </div>
         ) : (
-          <div className="divide-y divide-slate-800/40">
+          <div className="divide-y divide-white/[0.04]">
             {proxies.map((proxy) => (
               <div
                 key={proxy.id}
-                className="p-4 flex items-center justify-between hover:bg-slate-900/20 transition-all"
+                className="px-5 py-3.5 flex items-center gap-3 hover:bg-white/[0.02] transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-slate-200">
+                    <p className="text-sm font-semibold text-slate-200 font-mono">
                       {proxy.proxy_type.toUpperCase()}://{proxy.host}:
                       {proxy.port}
                     </p>
                     {activeProxy?.id === proxy.id && (
-                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-bold uppercase">
-                        {t("proxyManagement.active")}
+                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[9px] font-black uppercase">
+                        Aktif
                       </span>
                     )}
                   </div>
                   {proxy.username && (
-                    <p className="text-xs text-slate-500 mt-1">
-                      {t("proxyManagement.usernameLabel")}: {proxy.username}
+                    <p className="text-[10px] text-slate-600">
+                      User: {proxy.username}
                     </p>
                   )}
-                  <p className="text-xs text-slate-500 mt-1">
-                    {t("proxyManagement.added")}:{" "}
-                    {new Date(proxy.created_at).toLocaleDateString("id-ID")}
-                  </p>
                 </div>
-                <div className="flex gap-2 ml-4">
+                <div className="flex gap-2">
                   {activeProxy?.id !== proxy.id && (
                     <button
                       onClick={() => handleSetActive(proxy.id)}
-                      className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-xs font-bold border border-indigo-500/20 transition-all"
+                      className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-[10px] font-bold transition-all"
                     >
-                      {t("proxyManagement.setActive")}
+                      Set Aktif
                     </button>
                   )}
                   <button
-                    onClick={() => handleDelete(proxy.id)}
-                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/20 transition-all"
+                    onClick={() => setDeleteModal({ open: true, id: proxy.id })}
+                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-[10px] font-bold transition-all"
                   >
-                    {t("proxyManagement.delete")}
+                    Hapus
                   </button>
                 </div>
               </div>

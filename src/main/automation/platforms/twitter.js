@@ -1,9 +1,6 @@
 import { isPostLiked, saveLikedPost } from '../../db/queries.js'
 import { retryWithBackoff, RetryConfig } from '../../utils/retry.js'
-
-function randomDelay(min = 2000, max = 5000) {
-  return new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min))
-}
+import { randomDelay } from '../../utils/helpers.js'
 
 export async function processTwitter(context, db, targetUrl, onLog, options = {}) {
   const {
@@ -38,7 +35,6 @@ export async function processTwitter(context, db, targetUrl, onLog, options = {}
     while (toLikeList.length < limit && consecutiveSkips < consecutiveSkipsLimit && scrollAttempts < maxScrollAttempts) {
       try {
         const tweets = await page.$$('article[data-testid="tweet"]')
-        let foundNewOnThisScroll = false
 
         for (const tweet of tweets) {
           const linkElement = await tweet.$('a:has(time)')
@@ -54,7 +50,6 @@ export async function processTwitter(context, db, targetUrl, onLog, options = {}
 
           if (processedTweetIds.has(tweetId)) continue
           processedTweetIds.add(tweetId)
-          foundNewOnThisScroll = true
 
           const alreadyLiked = await isPostLiked(db, 'twitter', tweetId)
           if (alreadyLiked) {

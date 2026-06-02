@@ -10,11 +10,13 @@ const api = {
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   getDbStats: () => ipcRenderer.invoke('get-db-stats'),
   getConfig: (key) => ipcRenderer.invoke('get-config', key),
+  getAllConfig: () => ipcRenderer.invoke('get-all-config'),
   saveConfig: (key, value) => ipcRenderer.invoke('save-config', key, value),
   backupDatabase: () => ipcRenderer.invoke('backup-database'),
   restoreDatabase: () => ipcRenderer.invoke('restore-database'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getAutomationStatus: () => ipcRenderer.invoke('get-automation-status'),
   minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
   maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
   closeWindow: () => ipcRenderer.invoke('close-window'),
@@ -57,6 +59,20 @@ const api = {
     ipcRenderer.on('automation-log', subscription)
     return () => {
       ipcRenderer.off('automation-log', subscription)
+    }
+  },
+  onAutomationDone: (callback) => {
+    const subscription = () => callback()
+    ipcRenderer.on('automation-done', subscription)
+    return () => {
+      ipcRenderer.off('automation-done', subscription)
+    }
+  },
+  onAutomationStopped: (callback) => {
+    const subscription = () => callback()
+    ipcRenderer.on('automation-stopped', subscription)
+    return () => {
+      ipcRenderer.off('automation-stopped', subscription)
     }
   }
 }

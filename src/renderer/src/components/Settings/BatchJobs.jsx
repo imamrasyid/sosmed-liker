@@ -1,9 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { PLATFORMS } from "../../utils/constants.js";
+import { useAppContext } from "../../context/AppContext.jsx";
+import { ConfirmModal } from "../shared/ConfirmModal.jsx";
 import { useTranslation } from "react-i18next";
+
+const STATUS_STYLE = {
+  pending: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+  running: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  completed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  failed: "bg-red-500/10 text-red-400 border-red-500/20",
+};
 
 export function BatchJobs() {
   const { t } = useTranslation();
+  const { showToast } = useAppContext();
   const [batchJobs, setBatchJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
   const [jobUrls, setJobUrls] = useState([]);
@@ -12,6 +22,7 @@ export function BatchJobs() {
   const [urlInput, setUrlInput] = useState("");
   const [urlList, setUrlList] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [modal, setModal] = useState({ open: false, type: "", payload: null });
 
   useEffect(() => {
     loadBatchJobs();
@@ -20,409 +31,331 @@ export function BatchJobs() {
   const loadBatchJobs = async () => {
     setLoading(true);
     try {
-      const result = await window.api.getBatchJobs();
-      if (result.success) {
-        setBatchJobs(result.data || []);
-      }
-    } catch (err) {
-      console.error("Failed to load batch jobs:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadJobUrls = async (batchId) => {
-    setLoading(true);
-    try {
-      const result = await window.api.getBatchUrls(batchId);
-      if (result.success) {
-        setJobUrls(result.data || []);
-      }
-    } catch (err) {
-      console.error("Failed to load job URLs:", err);
+      const r = await window.api.getBatchJobs();
+      if (r.success) setBatchJobs(r.data ?? []);
+    } catch {
     } finally {
       setLoading(false);
     }
   };
 
   const handleAddUrl = () => {
-    if (!urlInput.trim()) return;
-    setUrlList([...urlList, urlInput.trim()]);
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    // Support multi-line paste
+    const lines = trimmed
+      .split(/\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    setUrlList((prev) => [...prev, ...lines]);
     setUrlInput("");
   };
 
-  const handleRemoveUrl = (index) => {
-    setUrlList(urlList.filter((_, i) => i !== index));
-  };
-
-  const handleCreateJob = async () => {
+  const handleCreate = async () => {
     if (!jobName.trim()) {
-      alert(t("batchJobs.alertNameRequired"));
+      showToast(t("batchJobs.alertNameRequired"), "error");
       return;
     }
     if (urlList.length === 0) {
-      alert(t("batchJobs.alertUrlRequired"));
+      showToast(t("batchJobs.alertUrlRequired"), "error");
       return;
     }
-
     setLoading(true);
     try {
-      const result = await window.api.createBatchJob(
-        jobName,
-        platform,
-        urlList,
-      );
-      if (result.success) {
+      const r = await window.api.createBatchJob(jobName, platform, urlList);
+      if (r.success) {
         setJobName("");
         setUrlList([]);
-        loadBatchJobs();
-        alert(t("batchJobs.alertCreateSuccess"));
+        await loadBatchJobs();
+        showToast(t("batchJobs.alertCreateSuccess"), "success");
       } else {
-        alert(result.error || t("batchJobs.alertCreateFailed"));
+        showToast(r.error ?? t("batchJobs.alertCreateFailed"), "error");
       }
     } catch (err) {
-      alert(t("batchJobs.alertCreateFailed") + ": " + err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStartJob = async (batchId) => {
-    if (!confirm(t("batchJobs.alertStartConfirm"))) return;
-
+  const handleStart = async (id) => {
     setLoading(true);
     try {
-      const result = await window.api.startBatchJob(batchId);
-      if (result.success) {
-        alert(t("batchJobs.alertStartSuccess"));
-        loadBatchJobs();
+      const r = await window.api.startBatchJob(id);
+      if (r.success) {
+        await loadBatchJobs();
+        showToast(t("batchJobs.alertStartSuccess"), "success");
       } else {
-        alert(result.error || t("batchJobs.alertStartFailed"));
+        showToast(r.error ?? t("batchJobs.alertStartFailed"), "error");
       }
     } catch (err) {
-      alert(t("batchJobs.alertStartFailed") + ": " + err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
+      setModal({ open: false, type: "", payload: null });
     }
   };
 
-  const handleDeleteJob = async (batchId) => {
-    if (!confirm(t("batchJobs.alertDeleteConfirm"))) return;
-
+  const handleDelete = async (id) => {
     setLoading(true);
     try {
-      const result = await window.api.deleteBatchJob(batchId);
-      if (result.success) {
-        if (selectedJob?.id === batchId) {
+      const r = await window.api.deleteBatchJob(id);
+      if (r.success) {
+        if (selectedJob?.id === id) {
           setSelectedJob(null);
           setJobUrls([]);
         }
-        loadBatchJobs();
+        await loadBatchJobs();
+        showToast("Batch job dihapus", "success");
       } else {
-        alert(result.error || t("batchJobs.alertDeleteFailed"));
+        showToast(r.error ?? t("batchJobs.alertDeleteFailed"), "error");
       }
     } catch (err) {
-      alert(t("batchJobs.alertDeleteFailed") + ": " + err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
+      setModal({ open: false, type: "", payload: null });
     }
   };
 
   const handleSelectJob = async (job) => {
+    if (selectedJob?.id === job.id) {
+      setSelectedJob(null);
+      setJobUrls([]);
+      return;
+    }
     setSelectedJob(job);
-    await loadJobUrls(job.id);
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "pending":
-        return "text-slate-400";
-      case "running":
-        return "text-blue-400";
-      case "completed":
-        return "text-emerald-400";
-      case "failed":
-        return "text-red-400";
-      default:
-        return "text-slate-400";
-    }
-  };
-
-  const getUrlStatusColor = (status) => {
-    switch (status) {
-      case "pending":
-        return "bg-slate-500/10 text-slate-400 border-slate-500/20";
-      case "completed":
-        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-      case "failed":
-        return "bg-red-500/10 text-red-400 border-red-500/20";
-      default:
-        return "bg-slate-500/10 text-slate-400 border-slate-500/20";
-    }
+    try {
+      const r = await window.api.getBatchUrls(job.id);
+      if (r.success) setJobUrls(r.data ?? []);
+    } catch {}
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h3 className="text-xl font-bold text-white mb-2">
-          {t("batchJobs.title")}
-        </h3>
-        <p className="text-slate-400 text-sm">{t("batchJobs.description")}</p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <ConfirmModal
+        open={modal.open && modal.type === "start"}
+        title="Mulai Batch Job?"
+        message="Semua URL akan diproses secara berurutan. Proses tidak bisa dihentikan di tengah jalan."
+        confirmLabel="Ya, Mulai"
+        variant="info"
+        onConfirm={() => handleStart(modal.payload)}
+        onCancel={() => setModal({ open: false, type: "", payload: null })}
+      />
+      <ConfirmModal
+        open={modal.open && modal.type === "delete"}
+        title="Hapus Batch Job?"
+        message="Batch job dan semua URL di dalamnya akan dihapus permanen."
+        confirmLabel="Ya, Hapus"
+        onConfirm={() => handleDelete(modal.payload)}
+        onCancel={() => setModal({ open: false, type: "", payload: null })}
+      />
 
-      {/* Info */}
-      <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <span className="text-lg">ℹ️</span>
-          <div>
-            <p className="text-sm font-bold text-blue-300">
-              {t("batchJobs.info")}
-            </p>
-            <ul className="text-xs text-blue-400/90 mt-1 space-y-1">
-              <li>• {t("batchJobs.info1")}</li>
-              <li>• {t("batchJobs.info2")}</li>
-              <li>• {t("batchJobs.info3")}</li>
-              <li>• {t("batchJobs.info4")}</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* Create Batch Job Form */}
-      <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-slate-800/80 p-5">
-        <h4 className="text-sm font-bold text-slate-200 mb-4">
+      {/* Create form */}
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-3">
+        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
           {t("batchJobs.createNew")}
-        </h4>
-        <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">
-                {t("batchJobs.jobName")}
-              </label>
-              <input
-                type="text"
-                value={jobName}
-                onChange={(e) => setJobName(e.target.value)}
-                placeholder={t("batchJobs.jobNamePlaceholder")}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 placeholder-slate-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2">
-                {t("batchJobs.platform")}
-              </label>
-              <select
-                value={platform}
-                onChange={(e) => setPlatform(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
-              >
-                <option value={PLATFORMS.INSTAGRAM}>
-                  {t("batchJobs.instagram")}
-                </option>
-                <option value={PLATFORMS.TWITTER}>
-                  {t("batchJobs.twitterX")}
-                </option>
-                <option value={PLATFORMS.THREADS}>
-                  {t("batchJobs.threads")}
-                </option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-2">
-              {t("batchJobs.urls")}
-            </label>
-            <textarea
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleAddUrl();
-                }
-              }}
-              placeholder={t("batchJobs.urlsPlaceholder")}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 h-32 resize-none font-mono placeholder-slate-600"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleAddUrl}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
-            >
-              {t("batchJobs.addUrl")}
-            </button>
-            <button
-              onClick={handleCreateJob}
-              disabled={loading}
-              className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white rounded-xl text-sm font-bold transition-all"
-            >
-              {loading ? t("batchJobs.creating") : t("batchJobs.createJob")}
-            </button>
-          </div>
-          {urlList.length > 0 && (
-            <div className="bg-slate-950 rounded-xl p-3">
-              <p className="text-xs font-bold text-slate-400 mb-2">
-                {t("batchJobs.urlsToProcess", { count: urlList.length })}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {urlList.map((url, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg"
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <input
+            type="text"
+            value={jobName}
+            onChange={(e) => setJobName(e.target.value)}
+            placeholder={t("batchJobs.jobNamePlaceholder")}
+            className="bg-[#0c1220] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+          />
+          <select
+            value={platform}
+            onChange={(e) => setPlatform(e.target.value)}
+            className="bg-[#0c1220] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+          >
+            <option value={PLATFORMS.INSTAGRAM}>Instagram</option>
+            <option value={PLATFORMS.TWITTER}>Twitter / X</option>
+            <option value={PLATFORMS.THREADS}>Threads</option>
+          </select>
+        </div>
+        <div>
+          <textarea
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleAddUrl();
+              }
+            }}
+            placeholder={t("batchJobs.urlsPlaceholder")}
+            rows={4}
+            className="w-full bg-[#0c1220] border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-slate-200 placeholder-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/40 resize-none"
+          />
+          <p className="text-[9px] text-slate-700 mt-1">
+            Ketik URL lalu tekan Enter, atau paste multiple baris sekaligus →
+            klik Tambah.
+          </p>
+        </div>
+
+        {urlList.length > 0 && (
+          <div className="bg-[#0c1220] border border-white/[0.06] rounded-xl p-3 max-h-32 overflow-y-auto">
+            <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-2">
+              {urlList.length} URL siap diproses
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {urlList.map((url, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-1 bg-white/[0.04] border border-white/[0.06] rounded-lg px-2 py-1"
+                >
+                  <span className="text-[10px] text-slate-400 truncate max-w-[180px]">
+                    {url}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setUrlList((p) => p.filter((_, j) => j !== i))
+                    }
+                    className="text-slate-600 hover:text-red-400 text-xs leading-none ml-0.5"
                   >
-                    <span className="text-xs text-slate-300 truncate max-w-[200px]">
-                      {url}
-                    </span>
-                    <button
-                      onClick={() => handleRemoveUrl(index)}
-                      className="text-red-400 hover:text-red-300 text-xs font-bold"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={handleAddUrl}
+            className="px-4 py-2 bg-white/[0.04] hover:bg-white/[0.07] text-slate-300 border border-white/[0.08] rounded-xl text-xs font-bold transition-all"
+          >
+            Tambah URL
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={loading || !jobName.trim() || urlList.length === 0}
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all"
+          >
+            {loading ? "Membuat..." : t("batchJobs.createJob")}
+          </button>
         </div>
       </div>
 
-      {/* Batch Jobs List */}
-      <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-slate-800/80 overflow-hidden">
-        <div className="p-4 border-b border-slate-800/50">
-          <h4 className="text-sm font-bold text-slate-200">
+      {/* Jobs list */}
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
+          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
             {t("batchJobs.jobsList")}
-            <span className="ml-2 text-xs text-slate-400">
-              ({batchJobs.length} {t("batchJobs.jobCount")})
-            </span>
-          </h4>
+          </p>
+          <span className="text-[10px] text-slate-600">
+            {batchJobs.length} job
+          </span>
         </div>
-
-        {loading ? (
-          <div className="p-8 text-center text-slate-400">
-            {t("batchJobs.loading")}
-          </div>
-        ) : batchJobs.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">
+        {batchJobs.length === 0 ? (
+          <div className="p-8 text-center text-slate-700 text-xs">
             {t("batchJobs.noJobs")}
           </div>
         ) : (
-          <div className="divide-y divide-slate-800/40">
+          <div className="divide-y divide-white/[0.04]">
             {batchJobs.map((job) => (
-              <div
-                key={job.id}
-                className="p-4 hover:bg-slate-900/20 transition-all cursor-pointer"
-                onClick={() => handleSelectJob(job)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-slate-200">
+              <div key={job.id}>
+                <div
+                  onClick={() => handleSelectJob(job)}
+                  className="px-5 py-3.5 flex items-center gap-3 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold text-slate-200">
                         {job.name}
                       </p>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${getStatusColor(job.status)} border-current/20`}
+                        className={`px-2 py-0.5 border rounded-full text-[9px] font-black uppercase ${STATUS_STYLE[job.status] ?? STATUS_STYLE.pending}`}
                       >
-                        {t(
-                          "batchJobs.status" +
-                            job.status.charAt(0).toUpperCase() +
-                            job.status.slice(1),
-                        )}
+                        {job.status}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {job.platform} • {job.total_urls} URLs •{" "}
-                      {job.processed_urls}/{job.total_urls}{" "}
-                      {t("batchJobs.processed")}
+                    <p className="text-[10px] text-slate-600">
+                      {job.platform} • {job.processed_urls}/{job.total_urls} URL
+                      • ✓ {job.successful_urls} ✕ {job.failed_urls}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {t("batchJobs.successful")}: {job.successful_urls} |{" "}
-                      {t("batchJobs.failed")}: {job.failed_urls}
-                    </p>
+                    {job.total_urls > 0 && (
+                      <div className="mt-1.5 w-full bg-white/[0.05] rounded-full h-1">
+                        <div
+                          className="bg-indigo-500 h-1 rounded-full transition-all"
+                          style={{
+                            width: `${Math.round((job.processed_urls / job.total_urls) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div
-                    className="flex gap-2 ml-4"
+                    className="flex gap-1.5 shrink-0"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {job.status === "pending" && (
                       <button
-                        onClick={() => handleStartJob(job.id)}
-                        className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-bold border border-emerald-500/20 transition-all"
+                        onClick={() =>
+                          setModal({
+                            open: true,
+                            type: "start",
+                            payload: job.id,
+                          })
+                        }
+                        className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-[10px] font-bold transition-all"
                       >
-                        {t("batchJobs.start")}
+                        Mulai
                       </button>
                     )}
                     <button
-                      onClick={() => handleDeleteJob(job.id)}
-                      className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs font-bold border border-red-500/20 transition-all"
+                      onClick={() =>
+                        setModal({
+                          open: true,
+                          type: "delete",
+                          payload: job.id,
+                        })
+                      }
+                      className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-[10px] font-bold transition-all"
                     >
-                      {t("batchJobs.delete")}
+                      Hapus
                     </button>
                   </div>
                 </div>
+
+                {/* URL detail expand */}
+                {selectedJob?.id === job.id && (
+                  <div className="bg-[#0a0f1a] border-t border-white/[0.04] max-h-52 overflow-y-auto">
+                    {jobUrls.length === 0 ? (
+                      <p className="p-4 text-center text-xs text-slate-700">
+                        Tidak ada URL
+                      </p>
+                    ) : (
+                      jobUrls.map((u) => (
+                        <div
+                          key={u.id}
+                          className="px-5 py-2 flex items-center gap-3 border-b border-white/[0.03] last:border-0"
+                        >
+                          <p className="flex-1 text-[11px] text-slate-400 truncate">
+                            {u.url}
+                          </p>
+                          <span
+                            className={`px-2 py-0.5 border rounded-full text-[9px] font-black uppercase shrink-0 ${STATUS_STYLE[u.status] ?? STATUS_STYLE.pending}`}
+                          >
+                            {u.status}
+                          </span>
+                          {u.error_message && (
+                            <p className="text-[10px] text-red-400 truncate max-w-[120px]">
+                              {u.error_message}
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* Selected Job Details */}
-      {selectedJob && (
-        <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-slate-800/80 overflow-hidden">
-          <div className="p-4 border-b border-slate-800/50 flex items-center justify-between">
-            <h4 className="text-sm font-bold text-slate-200">
-              {t("batchJobs.detail", { name: selectedJob.name })}
-            </h4>
-            <button
-              onClick={() => {
-                setSelectedJob(null);
-                setJobUrls([]);
-              }}
-              className="text-xs text-slate-400 hover:text-slate-300"
-            >
-              {t("batchJobs.close")}
-            </button>
-          </div>
-
-          {loading ? (
-            <div className="p-8 text-center text-slate-400">
-              {t("batchJobs.loading")}
-            </div>
-          ) : jobUrls.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              {t("batchJobs.noUrls")}
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-800/40 max-h-96 overflow-y-auto">
-              {jobUrls.map((url) => (
-                <div
-                  key={url.id}
-                  className="p-3 flex items-center justify-between"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-300 truncate">{url.url}</p>
-                    {url.error_message && (
-                      <p className="text-xs text-red-400 mt-1">
-                        {url.error_message}
-                      </p>
-                    )}
-                  </div>
-                  <span
-                    className={`ml-4 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${getUrlStatusColor(url.status)}`}
-                  >
-                    {t(
-                      "batchJobs.status" +
-                        url.status.charAt(0).toUpperCase() +
-                        url.status.slice(1),
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
