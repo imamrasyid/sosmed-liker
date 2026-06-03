@@ -209,9 +209,9 @@ export function Dashboard() {
                 />
               </svg>
               <p className="text-xs text-amber-300 flex-1">
-                Akun <strong>{PLATFORM_NAMES[selectedPlatform]}</strong> belum
-                dikonfigurasi. Tambahkan cookie profil sebelum menjalankan
-                otomatisasi.
+                {t("dashboard.cookieNotConfiguredBanner", {
+                  platform: PLATFORM_NAMES[selectedPlatform],
+                })}
               </p>
               <button
                 onClick={() => {
@@ -220,7 +220,7 @@ export function Dashboard() {
                 }}
                 className="text-[10px] font-bold text-amber-400 border border-amber-500/30 rounded-lg px-2.5 py-1 hover:bg-amber-500/10 transition-all shrink-0"
               >
-                Konfigurasi →
+                {t("dashboard.configureCookie")}
               </button>
             </div>
           )}
@@ -334,7 +334,7 @@ export function Dashboard() {
                 }}
                 className="py-3 px-4 rounded-xl text-[11px] font-bold text-slate-400 border border-white/[0.06] hover:bg-white/[0.04] hover:text-slate-300 transition-all"
               >
-                Cek Cookie
+                {t("dashboard.checkCookie")}
               </button>
             )}
           </div>
@@ -358,14 +358,16 @@ export function Dashboard() {
             {[
               {
                 label: t("dashboard.headlessMode"),
-                value: config.headless ? "Aktif (Silent)" : "Nonaktif",
+                value: config.headless
+                  ? t("dashboard.headlessActive")
+                  : t("dashboard.headlessInactive"),
                 valueColor: config.headless
                   ? "text-amber-400"
                   : "text-slate-300",
               },
               {
                 label: t("dashboard.postLimit"),
-                value: `${config.limit} post`,
+                value: `${config.limit} ${t("dashboard.post")}`,
                 valueColor: "text-slate-300",
               },
               {
@@ -394,7 +396,7 @@ export function Dashboard() {
           {/* Cookie status per platform */}
           <div className="pt-2 border-t border-white/[0.04] space-y-1.5">
             <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
-              Status Akun
+              {t("dashboard.accountStatus")}
             </p>
             {Object.values(PLATFORMS).map((p) => (
               <div key={p} className="flex items-center gap-2">
@@ -467,7 +469,7 @@ export function Dashboard() {
             <input
               value={logSearch}
               onChange={(e) => setLogSearch(e.target.value)}
-              placeholder="Cari log..."
+              placeholder={t("dashboard.searchLogs")}
               className="w-full bg-[#0c1220] border border-white/[0.06] rounded-lg pl-7 pr-3 py-1 text-[11px] text-slate-300 placeholder-slate-700 focus:outline-none focus:border-indigo-500/40 transition-all"
             />
           </div>
@@ -487,19 +489,18 @@ export function Dashboard() {
             Scroll
           </button>
 
-          {/* Utilities */}
           <button
             onClick={clearLogs}
             className="text-[9px] font-bold text-slate-600 hover:text-slate-400 px-2 py-1 border border-transparent hover:border-white/[0.06] rounded-lg transition-all"
           >
-            Hapus
+            {t("dashboard.clearLogs")}
           </button>
           <button
             onClick={handleDownloadLogs}
             disabled={!logs.length}
             className="text-[9px] font-bold text-slate-600 hover:text-slate-400 disabled:opacity-30 px-2 py-1 border border-transparent hover:border-white/[0.06] rounded-lg transition-all"
           >
-            Unduh
+            {t("dashboard.downloadLogs")}
           </button>
         </div>
 
@@ -511,8 +512,8 @@ export function Dashboard() {
           {filteredLogs.length === 0 ? (
             <div className="h-full flex items-center justify-center text-slate-700 select-none py-10">
               {logs.length === 0
-                ? "Sistem siap. Masukkan URL target untuk memulai."
-                : "Tidak ada log yang cocok."}
+                ? t("dashboard.logReady")
+                : t("dashboard.logNoMatch")}
             </div>
           ) : (
             filteredLogs.map((log, i) => {

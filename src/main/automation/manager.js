@@ -62,16 +62,17 @@ export class AutomationManager {
       this.log(`[INFO] Target URL ada di whitelist. Melanjutkan proses.`)
     }
 
-    // Ambil konfigurasi dinamis dari database SQLite
+    // Ambil konfigurasi dinamis dari database SQLite — 1 batch query, bukan 8 terpisah
     this.log('Membaca konfigurasi bot dari database...')
-    const minDelay = parseInt(await dbQueries.getConfig(this.db, 'min_delay') || '3000', 10)
-    const maxDelay = parseInt(await dbQueries.getConfig(this.db, 'max_delay') || '6000', 10)
-    const limit = parseInt(await dbQueries.getConfig(this.db, 'limit') || '20', 10)
-    const headless = (await dbQueries.getConfig(this.db, 'headless') || 'false') === 'true'
-    const consecutiveSkipsLimit = parseInt(await dbQueries.getConfig(this.db, 'consecutive_skips_limit') || '5', 10)
-    const scrollStep = parseInt(await dbQueries.getConfig(this.db, 'scroll_step') || '1000', 10)
-    const maxScrollAttempts = parseInt(await dbQueries.getConfig(this.db, 'max_scroll_attempts') || '20', 10)
-    const userAgent = await dbQueries.getConfig(this.db, 'browser_user_agent') || 'Default'
+    const configRaw = await dbQueries.getAllAutomationConfig(this.db)
+    const minDelay = parseInt(configRaw.min_delay || '3000', 10)
+    const maxDelay = parseInt(configRaw.max_delay || '6000', 10)
+    const limit = parseInt(configRaw.limit || '20', 10)
+    const headless = (configRaw.headless || 'false') === 'true'
+    const consecutiveSkipsLimit = parseInt(configRaw.consecutive_skips_limit || '5', 10)
+    const scrollStep = parseInt(configRaw.scroll_step || '1000', 10)
+    const maxScrollAttempts = parseInt(configRaw.max_scroll_attempts || '20', 10)
+    const userAgent = configRaw.browser_user_agent || 'Default'
 
     this.log(`Konfigurasi aktif -> Delay: ${minDelay}-${maxDelay}ms, Batas Post: ${limit}, Headless: ${headless}, Skip Limit: ${consecutiveSkipsLimit}, Scroll: ${scrollStep}px, Maks Gulir: ${maxScrollAttempts}, UA: ${userAgent}`)
 
@@ -200,6 +201,13 @@ export class AutomationManager {
       let failed = 0
 
       for (const batchUrl of batchUrls) {
+        // Guard: hentikan loop jika user memanggil stop() di tengah batch
+        if (!this.isRunning) {
+          this.log('[SYSTEM] Batch dihentikan secara manual.')
+          await dbQueries.updateBatchJobStatus(this.db, batchId, 'failed')
+          break
+        }
+
         this.log(`[${processed + 1}/${batchJob.total_urls}] Memproses: ${batchUrl.url}`)
 
         try {

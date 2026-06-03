@@ -28,21 +28,25 @@ export function SettingsApp() {
   };
 
   const handleBackup = async () => {
+    if (!window.api?.backupDatabase) return;
     const r = await window.api.backupDatabase();
     if (r.cancelled) return;
     showToast(
-      r.success ? `Backup disimpan: ${r.path}` : `Gagal backup: ${r.error}`,
+      r.success
+        ? t("settingsApp.backupSuccess", { path: r.path })
+        : t("settingsApp.backupFailed", { error: r.error }),
       r.success ? "success" : "error",
     );
   };
 
   const handleRestore = async () => {
+    if (!window.api?.restoreDatabase) return;
     const r = await window.api.restoreDatabase();
     if (r.cancelled) return;
     showToast(
       r.success
-        ? "Database berhasil dipulihkan. Restart aplikasi disarankan."
-        : `Gagal restore: ${r.error}`,
+        ? t("settingsApp.restoreSuccess")
+        : t("settingsApp.restoreFailed", { error: r.error }),
       r.success ? "success" : "error",
     );
   };
@@ -54,19 +58,24 @@ export function SettingsApp() {
   };
 
   const sysInfo = [
-    { label: "Versi Aplikasi", value: appVersion },
-    { label: "Platform", value: "Electron + React" },
-    { label: "Database", value: "SQLite (WAL mode)" },
-    { label: "Status", value: "Online", valueColor: "text-emerald-400" },
+    { label: t("settingsApp.appVersion"), value: appVersion },
+    { label: t("settingsApp.platform"), value: t("settingsApp.platformValue") },
+    { label: t("settingsApp.database"), value: t("settingsApp.databaseValue") },
+    {
+      label: t("settingsApp.status"),
+      value: t("settingsApp.online"),
+      valueColor: "text-emerald-400",
+    },
   ];
 
   return (
     <div className="flex-1 flex flex-col gap-5 max-w-5xl mx-auto w-full">
       <ConfirmModal
         open={confirmClearDb}
-        title="Hapus Semua Data?"
-        message="Seluruh riwayat liked posts akan dihapus permanen dari database. Tindakan ini tidak bisa dibatalkan."
-        confirmLabel="Ya, Hapus Semua"
+        title={t("settingsApp.deleteAllData")}
+        message={t("settingsApp.deleteAllDataDesc")}
+        confirmLabel={t("settingsApp.confirmDelete")}
+        cancelLabel={t("settingsApp.cancel")}
         onConfirm={handleClear}
         onCancel={() => setConfirmClearDb(false)}
       />
@@ -107,9 +116,11 @@ export function SettingsApp() {
             </svg>
             <div className="text-left">
               <p className="text-xs font-bold text-slate-300">
-                Backup Database
+                {t("settingsApp.backupLabel")}
               </p>
-              <p className="text-[10px] text-slate-600">Simpan salinan .bak</p>
+              <p className="text-[10px] text-slate-600">
+                {t("settingsApp.backupDesc")}
+              </p>
             </div>
           </button>
 
@@ -133,10 +144,10 @@ export function SettingsApp() {
             </svg>
             <div className="text-left">
               <p className="text-xs font-bold text-slate-300">
-                Restore Database
+                {t("settingsApp.restoreLabel")}
               </p>
               <p className="text-[10px] text-slate-600">
-                Pulihkan dari file .bak
+                {t("settingsApp.restoreDesc")}
               </p>
             </div>
           </button>
@@ -160,9 +171,11 @@ export function SettingsApp() {
               />
             </svg>
             <div className="text-left">
-              <p className="text-xs font-bold text-red-400">Hapus Semua Data</p>
+              <p className="text-xs font-bold text-red-400">
+                {t("settingsApp.deleteAllData")}
+              </p>
               <p className="text-[10px] text-slate-600">
-                Tidak bisa dibatalkan
+                {t("settingsApp.deleteAllDataWarning")}
               </p>
             </div>
           </button>
@@ -215,7 +228,7 @@ export function SettingsApp() {
                 />
               </svg>
             )}
-            Cek Update
+            {t("settingsApp.checkUpdate")}
           </button>
         </div>
         <div className="grid grid-cols-2 gap-3">

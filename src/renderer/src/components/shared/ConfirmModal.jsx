@@ -1,17 +1,36 @@
 import React from "react";
 
+// Dideklarasikan di luar komponen agar tidak ada self-reference saat assignment
+const VARIANT_COLORS = {
+  danger: {
+    icon: "text-red-400",
+    bg: "bg-red-500/10 border-red-500/20",
+    btn: "bg-red-600 hover:bg-red-500 text-white",
+  },
+  warning: {
+    icon: "text-amber-400",
+    bg: "bg-amber-500/10 border-amber-500/20",
+    btn: "bg-amber-600 hover:bg-amber-500 text-white",
+  },
+  info: {
+    icon: "text-indigo-400",
+    bg: "bg-indigo-500/10 border-indigo-500/20",
+    btn: "bg-indigo-600 hover:bg-indigo-500 text-white",
+  },
+};
+
 /**
- * Modal konfirmasi yang menggantikan native alert() / confirm() di semua komponen Settings.
+ * Modal konfirmasi — menggantikan native alert() / confirm().
  *
  * Props:
- *   open        – boolean
- *   title       – string
- *   message     – string | React node
+ *   open         – boolean
+ *   title        – string
+ *   message      – string | React node
  *   confirmLabel – string (default: "Ya, Lanjutkan")
  *   cancelLabel  – string (default: "Batal")
  *   variant      – "danger" | "warning" | "info" (default: "danger")
- *   onConfirm   – () => void
- *   onCancel    – () => void
+ *   onConfirm    – () => void
+ *   onCancel     – () => void
  */
 export function ConfirmModal({
   open,
@@ -25,24 +44,7 @@ export function ConfirmModal({
 }) {
   if (!open) return null;
 
-  const colors =
-    {
-      danger: {
-        icon: "text-red-400",
-        bg: "bg-red-500/10 border-red-500/20",
-        btn: "bg-red-600 hover:bg-red-500 text-white",
-      },
-      warning: {
-        icon: "text-amber-400",
-        bg: "bg-amber-500/10 border-amber-500/20",
-        btn: "bg-amber-600 hover:bg-amber-500 text-white",
-      },
-      info: {
-        icon: "text-indigo-400",
-        bg: "bg-indigo-500/10 border-indigo-500/20",
-        btn: "bg-indigo-600 hover:bg-indigo-500 text-white",
-      },
-    }[variant] ?? colors.danger;
+  const colors = VARIANT_COLORS[variant] ?? VARIANT_COLORS.danger;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">

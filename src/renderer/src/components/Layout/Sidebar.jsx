@@ -221,15 +221,18 @@ export function Sidebar() {
 
   return (
     <aside className="w-60 bg-[#0c1220] border-r border-white/[0.06] flex flex-col h-full">
-      {/* ── Title bar drag region ──────────────────────────── */}
-      <div className="h-10 drag-region flex items-center px-4 shrink-0">
-        <div className="flex items-center gap-2.5 no-drag-region">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 p-[1.5px] shadow-lg shadow-indigo-500/30">
-            <div className="h-full w-full rounded-[6px] bg-[#0c1220] flex items-center justify-center overflow-hidden">
+      {/* ── Title bar drag region (kosong, hanya untuk dragging window) ── */}
+      <div className="h-8 drag-region shrink-0" />
+
+      {/* ── Brand header ──────────────────────────────────── */}
+      <div className="px-4 pb-3 shrink-0 no-drag-region">
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 p-[1.5px] shadow-lg shadow-indigo-500/30 shrink-0">
+            <div className="h-full w-full rounded-[10px] bg-[#0c1220] flex items-center justify-center overflow-hidden">
               <img
                 src={appLogo}
                 alt="logo"
-                className="h-full w-full object-cover rounded-[6px]"
+                className="h-full w-full object-cover rounded-[10px]"
               />
             </div>
           </div>
@@ -245,7 +248,7 @@ export function Sidebar() {
       </div>
 
       {/* ── Bot status pill ────────────────────────────────── */}
-      <div className="px-3 pb-3 shrink-0">
+      <div className="px-3 pb-3 no-drag-region shrink-0">
         <div
           className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${isRunning ? "bg-emerald-500/8 border-emerald-500/20" : "bg-white/[0.03] border-white/[0.06]"}`}
         >
@@ -321,30 +324,30 @@ export function Sidebar() {
         <div className="grid grid-cols-3 gap-1.5">
           {[
             {
-              label: "Likes",
+              labelKey: "sidebar.stats.likes",
               value: stats.total_liked,
               color: "text-indigo-400",
             },
             {
-              label: "Profil",
+              labelKey: "sidebar.stats.profiles",
               value: stats.total_profiles,
               color: "text-violet-400",
             },
             {
-              label: "Hari ini",
+              labelKey: "sidebar.stats.today",
               value: stats.liked_today,
               color: "text-emerald-400",
             },
           ].map((s) => (
             <div
-              key={s.label}
+              key={s.labelKey}
               className="bg-white/[0.03] border border-white/[0.05] rounded-lg px-2 py-1.5 text-center"
             >
               <p className={`text-sm font-black ${s.color} leading-none`}>
                 {s.value}
               </p>
               <p className="text-[8px] text-slate-600 font-semibold mt-0.5 uppercase tracking-wide">
-                {s.label}
+                {t(s.labelKey)}
               </p>
             </div>
           ))}
@@ -353,7 +356,7 @@ export function Sidebar() {
         {/* Accounts connected */}
         <div className="flex items-center justify-between px-1">
           <span className="text-[9px] text-slate-600 font-semibold uppercase tracking-wider">
-            Akun terhubung
+            {t("sidebar.stats.connected")}
           </span>
           <div className="flex items-center gap-1">
             {[PLATFORMS.INSTAGRAM, PLATFORMS.TWITTER, PLATFORMS.THREADS].map(

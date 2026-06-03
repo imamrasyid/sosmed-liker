@@ -166,11 +166,11 @@ export function History() {
       {/* Counter */}
       {search && (
         <p className="text-xs text-slate-600">
-          Menampilkan{" "}
+          {t("history.showing")}{" "}
           <span className="text-slate-400 font-bold">{filtered.length}</span>{" "}
-          dari{" "}
+          {t("history.of")}{" "}
           <span className="text-slate-400 font-bold">{history.length}</span>{" "}
-          entri
+          {t("history.entries")}
         </p>
       )}
 
@@ -233,13 +233,13 @@ export function History() {
                           }
                           className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-[9px] font-bold transition-all"
                         >
-                          Buka
+                          {t("history.openPost")}
                         </button>
                         <button
                           onClick={() => handleDelete(item.id)}
                           className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-[9px] font-bold transition-all"
                         >
-                          Hapus
+                          {t("common.delete")}
                         </button>
                       </div>
                     </td>
@@ -250,11 +250,10 @@ export function History() {
           </table>
         </div>
 
-        {/* Footer count */}
         {history.length > 0 && (
-          <div className="px-5 py-2.5 border-t border-white/[0.04] flex items-center justify-between">
+          <div className="px-5 py-2.5 border-t border-white/[0.04]">
             <p className="text-[10px] text-slate-700">
-              {history.length} total entri tersimpan
+              {t("history.totalEntries", { count: history.length })}
             </p>
           </div>
         )}

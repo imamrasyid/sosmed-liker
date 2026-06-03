@@ -94,7 +94,7 @@ export function Accounts() {
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
           </svg>
-          Refresh Status
+          {t("accounts.refreshStatus")}
         </button>
       </div>
 
@@ -118,20 +118,20 @@ export function Accounts() {
             className={`text-xs font-bold ${connectedCount === 3 ? "text-emerald-300" : connectedCount > 0 ? "text-amber-300" : "text-red-300"}`}
           >
             {connectedCount === 3
-              ? "Semua platform siap"
+              ? t("accounts.allReady")
               : connectedCount > 0
-                ? `${connectedCount} platform terhubung`
-                : "Belum ada profil aktif"}
+                ? t("accounts.someConnected", { count: connectedCount })
+                : t("accounts.noneConnected")}
           </p>
           <p className="text-[10px] text-slate-600">
-            Cookie profil diperlukan untuk menjalankan otomatisasi per platform.
+            {t("accounts.cookieRequired")}
           </p>
         </div>
         <button
           onClick={goToProfiles}
           className="ml-auto text-[10px] font-bold text-indigo-400 border border-indigo-500/20 rounded-lg px-2.5 py-1 hover:bg-indigo-500/10 transition-all shrink-0"
         >
-          Kelola Profil →
+          {t("accounts.manageProfile")}
         </button>
       </div>
 
@@ -188,7 +188,9 @@ export function Accounts() {
                     : "bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20"
                 }`}
               >
-                {connected ? "Ganti Profil" : "Tambah Profil"}
+                {connected
+                  ? t("accounts.changeProfile")
+                  : t("accounts.addProfile")}
               </button>
             </div>
           );

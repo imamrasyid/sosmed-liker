@@ -1,9 +1,11 @@
 import { chromium } from 'playwright-core'
 import { app, shell } from 'electron'
 import fs from 'fs'
+import { join as pathJoin } from 'path'
 
 export async function parseAllCookiesFromFolder(userDataFolder) {
-  const path = require('path')
+  // ESM-safe: gunakan import di atas, bukan require()
+  const path = { join: pathJoin }
 
   // 1. Pastikan folder AppData writable ada
   if (!fs.existsSync(userDataFolder)) {

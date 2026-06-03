@@ -2,30 +2,28 @@ import React from "react";
 import { useAppContext } from "../../context/AppContext.jsx";
 import { useTranslation } from "react-i18next";
 
-const TAB_LABELS = {
-  dashboard: "Dashboard",
-  history: "Like History",
-  analytics: "Analytics",
-  settings: "Settings",
-  "settings-app": "System",
-  accounts: "Accounts",
+// Tab label keys mengikuti i18n — breadcrumb berubah sesuai bahasa user
+const TAB_LABEL_KEYS = {
+  dashboard: "sidebar.dashboard",
+  history: "sidebar.likeHistory",
+  analytics: "sidebar.statistics",
+  settings: "sidebar.parameters",
+  "settings-app": "sidebar.system",
+  accounts: "sidebar.profileStatus",
 };
 
 export function Header() {
-  const {
-    activeTab,
-    language,
-    setLanguage,
-    appVersion,
-    runUpdateCheck,
-    checkingForUpdates,
-  } = useAppContext();
-  const { i18n } = useTranslation();
+  const { activeTab, language, setLanguage } = useAppContext();
+  const { t, i18n } = useTranslation();
 
   const handleLang = (lang) => {
     setLanguage(lang);
     i18n.changeLanguage(lang);
   };
+
+  const tabLabel = TAB_LABEL_KEYS[activeTab]
+    ? t(TAB_LABEL_KEYS[activeTab])
+    : activeTab;
 
   return (
     <header className="h-10 bg-[#0c1220]/80 border-b border-white/[0.06] flex items-center justify-between px-5 drag-region shrink-0 z-20">
@@ -44,7 +42,7 @@ export function Header() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-          {TAB_LABELS[activeTab] ?? activeTab}
+          {tabLabel}
         </span>
       </div>
 

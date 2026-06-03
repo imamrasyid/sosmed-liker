@@ -9,13 +9,13 @@ import { ProxyManagement } from "./ProxyManagement.jsx";
 import { BatchJobs } from "./BatchJobs.jsx";
 import { CommentTemplates } from "./CommentTemplates.jsx";
 
-const TABS = [
-  { id: "config", label: "Konfigurasi" },
-  { id: "profiles", label: "Multi-Profil" },
-  { id: "lists", label: "Blacklist/Whitelist" },
-  { id: "proxy", label: "Proxy" },
-  { id: "batch", label: "Batch Jobs" },
-  { id: "comments", label: "Komentar" },
+const SETTINGS_TAB_IDS = [
+  { id: "config", i18nKey: "settings.config" },
+  { id: "profiles", i18nKey: "settings.multiProfile" },
+  { id: "lists", i18nKey: "settings.blacklistWhitelist" },
+  { id: "proxy", i18nKey: "settings.proxy" },
+  { id: "batch", i18nKey: "settings.batchJobs" },
+  { id: "comments", i18nKey: "settings.comments" },
 ];
 
 function SliderRow({
@@ -88,7 +88,7 @@ export function Settings() {
 
       {/* Tab nav */}
       <div className="flex items-center gap-0.5 border-b border-white/[0.06] pb-0">
-        {TABS.map((tab) => (
+        {SETTINGS_TAB_IDS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setSettingsSubTab(tab.id)}
@@ -98,7 +98,7 @@ export function Settings() {
                 : "text-slate-600 border-transparent hover:text-slate-400"
             }`}
           >
-            {tab.label}
+            {t(tab.i18nKey)}
           </button>
         ))}
       </div>

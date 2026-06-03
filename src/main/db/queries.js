@@ -53,6 +53,21 @@ export async function saveConfig(db, key, value) {
   return true
 }
 
+/**
+ * Ambil semua config yang dibutuhkan automation dalam 1 query.
+ * Menggantikan 8 getConfig() terpisah di manager._processUrl().
+ */
+export async function getAllAutomationConfig(db) {
+  const keys = [
+    'min_delay', 'max_delay', 'limit', 'headless',
+    'consecutive_skips_limit', 'scroll_step', 'max_scroll_attempts', 'browser_user_agent'
+  ]
+  const rows = await all(db, `SELECT key, value FROM config WHERE key IN (${keys.map(() => '?').join(',')})`, keys)
+  const result = {}
+  for (const row of rows) result[row.key] = row.value
+  return result
+}
+
 // ── Profile Lists (Blacklist / Whitelist) ─────────────────────────────────────
 
 export async function isProfileBlacklisted(db, platform, profileUrl) {
@@ -211,10 +226,19 @@ export async function migrateCookiesToProfiles(db, cookieFolderPath) {
     return { success: true, migrated: 0, message: 'No cookie files found' }
   }
 
+  const VALID_PLATFORMS = ['instagram', 'twitter', 'threads']
+
   let migratedCount = 0
 
   for (const file of files) {
     const platform = file.replace('.txt', '').toLowerCase()
+
+    // Lewati file yang bukan nama platform yang dikenali (misal: backup.txt, notes.txt)
+    if (!VALID_PLATFORMS.includes(platform)) {
+      console.log(`Skipping non-platform file: ${file}`)
+      continue
+    }
+
     const content = readFileSync(join(cookieFolderPath, file), 'utf-8')
 
     const existing = await get(db, 'SELECT id FROM profiles WHERE platform = ?', [platform])

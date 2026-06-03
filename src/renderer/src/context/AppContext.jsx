@@ -17,13 +17,7 @@ export function AppProvider({ children }) {
   const [language, setLanguage] = useState("id");
 
   // ── Sidebar collapsible ───────────────────────────────────────────────────
-  const [expandedGroups, setExpandedGroups] = useState({
-    "campaigns-group": true,
-    "history-group": true,
-    "analytics-group": true,
-    "accounts-group": true,
-    "settings-group": true,
-  });
+  // (expandedGroups dihapus — sidebar sudah flat nav, tidak pakai collapsible lagi)
 
   // ── Cookie / profile status ───────────────────────────────────────────────
   const [cookiesStatus, setCookiesStatus] = useState({
@@ -250,8 +244,7 @@ export function AppProvider({ children }) {
     setLanguage,
 
     // Sidebar
-    expandedGroups,
-    setExpandedGroups,
+    // expandedGroups dihapus (tidak digunakan setelah sidebar di-refactor ke flat nav)
 
     // Profile / cookie status
     cookiesStatus,

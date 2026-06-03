@@ -224,13 +224,15 @@ export function ProfileManagement() {
             className={`text-xs font-bold ${activeProfile ? "text-emerald-300" : "text-slate-500"}`}
           >
             {activeProfile
-              ? `Profil Aktif: ${activeProfile.profile_name}`
-              : "Tidak ada profil aktif"}
+              ? t("profileManagement.activeProfileLabel", {
+                  name: activeProfile.profile_name,
+                })
+              : t("profileManagement.noActiveProfile")}
           </p>
           <p className="text-[10px] text-slate-600">
             {activeProfile
-              ? `Digunakan untuk otomatisasi ${platform}`
-              : "Cookie folder akan digunakan sebagai fallback"}
+              ? t("profileManagement.activeProfileHint", { platform })
+              : t("profileManagement.fallbackHint")}
           </p>
         </div>
       </div>
@@ -264,25 +266,24 @@ export function ProfileManagement() {
           disabled={loading || !profileName.trim() || !cookieContent.trim()}
           className="self-start px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all"
         >
-          {loading ? "Menambahkan..." : t("profileManagement.addProfileBtn")}
+          {loading ? t("common.loading") : t("profileManagement.addProfileBtn")}
         </button>
       </div>
 
-      {/* Profiles list */}
       <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
           <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
-            Daftar Profil —{" "}
+            {t("profileManagement.profilesList")} —{" "}
             {PLATFORM_OPTIONS.find((p) => p.value === platform)?.label}
           </p>
           <span className="text-[10px] text-slate-600">
-            {profiles.length} profil
+            {profiles.length} {t("profileManagement.profileCount")}
           </span>
         </div>
 
         {loading ? (
           <div className="p-8 text-center text-slate-600 text-xs">
-            Memuat...
+            {t("common.loading")}
           </div>
         ) : profiles.length === 0 ? (
           <div className="p-8 text-center text-slate-700 text-xs">
@@ -302,13 +303,13 @@ export function ProfileManagement() {
                     </p>
                     {activeProfile?.id === profile.id && (
                       <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[9px] font-black uppercase shrink-0">
-                        Aktif
+                        {t("profileManagement.activeProfile")}
                       </span>
                     )}
                   </div>
                   <p className="text-[10px] text-slate-600 mt-0.5">
-                    Ditambahkan{" "}
-                    {new Date(profile.created_at).toLocaleDateString("id-ID")}
+                    {t("profileManagement.createdAt")}{" "}
+                    {new Date(profile.created_at).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -317,7 +318,7 @@ export function ProfileManagement() {
                       onClick={() => handleSetActive(profile.id)}
                       className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-[10px] font-bold transition-all"
                     >
-                      Set Aktif
+                      {t("profileManagement.setActive")}
                     </button>
                   )}
                   <button
@@ -330,7 +331,7 @@ export function ProfileManagement() {
                     }
                     className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-[10px] font-bold transition-all"
                   >
-                    Hapus
+                    {t("common.delete")}
                   </button>
                 </div>
               </div>

@@ -18,113 +18,49 @@ export function isValidUrl(url) {
  */
 export function detectPlatformFromUrl(url) {
   if (!url) return PLATFORMS.INSTAGRAM
-
-  const lowerUrl = url.toLowerCase()
-
-  if (lowerUrl.includes('instagram.com')) {
-    return PLATFORMS.INSTAGRAM
-  } else if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) {
-    return PLATFORMS.TWITTER
-  } else if (lowerUrl.includes('threads.net') || lowerUrl.includes('threads.com')) {
-    return PLATFORMS.THREADS
-  }
-
+  const lower = url.toLowerCase()
+  if (lower.includes('instagram.com')) return PLATFORMS.INSTAGRAM
+  if (lower.includes('twitter.com') || lower.includes('x.com')) return PLATFORMS.TWITTER
+  if (lower.includes('threads.net') || lower.includes('threads.com')) return PLATFORMS.THREADS
   return PLATFORMS.INSTAGRAM
 }
 
 /**
- * Get platform placeholder URL
+ * Get placeholder URL for a given platform
  */
 export function getPlatformPlaceholder(platform) {
   return PLATFORM_DOMAINS[platform] || PLATFORM_DOMAINS[PLATFORMS.INSTAGRAM]
 }
 
 /**
- * Validate cookie format (basic validation)
+ * Validate cookie content format (Netscape HTTP Cookie File)
  */
 export function isValidCookieFormat(cookieContent) {
   if (!cookieContent || typeof cookieContent !== 'string') return false
-
   const lines = cookieContent.split('\n')
   let validLines = 0
-
   for (const line of lines) {
     const trimmed = line.trim()
     if (trimmed === '' || trimmed.startsWith('#')) continue
-
-    const parts = trimmed.split('\t')
-    if (parts.length === 7) {
-      validLines++
-    }
+    if (trimmed.split('\t').length === 7) validLines++
   }
-
   return validLines > 0
 }
 
 /**
- * Sanitize cookie content
- */
-export function sanitizeCookieContent(cookieContent) {
-  if (!cookieContent) return ''
-
-  return cookieContent
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line !== '' && !line.startsWith('#HttpOnly_') && !line.startsWith('#'))
-    .join('\n')
-}
-
-/**
- * Validate configuration value
+ * Validate configuration value against its constraints
  */
 export function validateConfigValue(key, value) {
-  // Convert to number if it's a string, otherwise use as-is
-  const numValue = typeof value === 'string' ? parseInt(value, 10) : value
-
+  const num = typeof value === 'string' ? parseInt(value, 10) : value
   switch (key) {
-    case 'min_delay':
-      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 1000 && numValue <= 60000
-    case 'max_delay':
-      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 2000 && numValue <= 120000
-    case 'limit':
-      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 1 && numValue <= 1000
-    case 'consecutive_skips_limit':
-      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 1 && numValue <= 100
-    case 'scroll_step':
-      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 100 && numValue <= 5000
-    case 'max_scroll_attempts':
-      return typeof numValue === 'number' && !isNaN(numValue) && numValue >= 5 && numValue <= 100
-    case 'headless':
-      return value === 'true' || value === 'false' || value === true || value === false
-    case 'browser_user_agent':
-      return ['Default', 'Chrome Windows', 'Safari macOS', 'Firefox Linux'].includes(value)
-    default:
-      return true
+    case 'min_delay': return Number.isFinite(num) && num >= 1000 && num <= 60000
+    case 'max_delay': return Number.isFinite(num) && num >= 2000 && num <= 120000
+    case 'limit': return Number.isFinite(num) && num >= 1 && num <= 1000
+    case 'consecutive_skips_limit': return Number.isFinite(num) && num >= 1 && num <= 100
+    case 'scroll_step': return Number.isFinite(num) && num >= 100 && num <= 5000
+    case 'max_scroll_attempts': return Number.isFinite(num) && num >= 5 && num <= 100
+    case 'headless': return value === 'true' || value === 'false' || value === true || value === false
+    case 'browser_user_agent': return ['Default', 'Chrome Windows', 'Safari macOS', 'Firefox Linux'].includes(value)
+    default: return true
   }
-}
-
-/**
- * Validate post ID format
- */
-export function isValidPostId(postId) {
-  if (!postId || typeof postId !== 'string') return false
-  return postId.length > 0 && postId.length <= 500
-}
-
-/**
- * Sanitize user input
- */
-export function sanitizeInput(input) {
-  if (typeof input !== 'string') return ''
-  return input.trim().slice(0, 1000) // Limit to 1000 characters
-}
-
-/**
- * Validate file extension
- */
-export function isValidFileExtension(filename, allowedExtensions) {
-  if (!filename || !allowedExtensions || !Array.isArray(allowedExtensions)) return false
-
-  const extension = filename.toLowerCase().slice(filename.lastIndexOf('.'))
-  return allowedExtensions.includes(extension)
 }
