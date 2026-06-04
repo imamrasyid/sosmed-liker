@@ -1,8 +1,8 @@
 import { isPostLiked, saveLikedPost } from '../../db/queries.js'
-import { retryWithBackoff, RetryConfig } from '../../utils/retry.js'
+import { retryWithBackoff, RetryConfig, isBrowserClosedError } from '../../utils/retry.js'
 import { randomDelay } from '../../utils/helpers.js'
 
-export async function processTwitter(context, db, targetUrl, onLog, options = {}) {
+export async function processTwitter(context, db, targetUrl, onLog, options = {}, isAborted = () => false) {
   const {
     minDelay = 3000,
     maxDelay = 6000,
@@ -33,6 +33,12 @@ export async function processTwitter(context, db, targetUrl, onLog, options = {}
     let lastHeight = await page.evaluate(() => document.body.scrollHeight)
 
     while (toLikeList.length < limit && consecutiveSkips < consecutiveSkipsLimit && scrollAttempts < maxScrollAttempts) {
+      // Guard: hentikan pemetaan jika browser ditutup
+      if (isAborted()) {
+        onLog('[SYSTEM] Proses dihentikan saat pemetaan.')
+        break
+      }
+
       try {
         const tweets = await page.$$('article[data-testid="tweet"]')
 
@@ -117,6 +123,12 @@ export async function processTwitter(context, db, targetUrl, onLog, options = {}
     // Stage 2: Liking loop
     let successCount = 0
     for (let i = 0; i < toLikeList.length; i++) {
+      // Guard: hentikan jika browser ditutup atau stop() dipanggil
+      if (isAborted()) {
+        onLog('[SYSTEM] Proses dihentikan.')
+        break
+      }
+
       const post = toLikeList[i]
       onLog(`[Stage 2] [${i + 1}/${toLikeList.length}] Membuka detail tweet: ${post.url}`)
 
@@ -129,10 +141,7 @@ export async function processTwitter(context, db, targetUrl, onLog, options = {}
 
         // Tunggu tombol like/unlike
         const buttonSelector = 'button[data-testid="like"], button[data-testid="unlike"]'
-        await retryWithBackoff(
-          () => page.waitForSelector(buttonSelector, { timeout: 15000 }),
-          { ...RetryConfig.DOM, onRetry: (attempt, err, delay) => onLog(`[Retry] Wait for selector attempt ${attempt} failed. Retrying in ${Math.round(delay)}ms: ${err.message}`) }
-        ).catch(() => { })
+        await page.waitForSelector(buttonSelector, { timeout: 15000 }).catch(() => { })
 
         // Periksa apakah sudah disukai secara manual
         const unlikeButton = await page.$('button[data-testid="unlike"]')
@@ -143,10 +152,18 @@ export async function processTwitter(context, db, targetUrl, onLog, options = {}
           const likeButton = await page.$('button[data-testid="like"]')
           if (likeButton) {
             onLog(`[ACTION] Melakukan Like pada tweet ${post.id}...`)
-            await retryWithBackoff(
-              () => page.click('button[data-testid="like"]', { force: true }),
-              { ...RetryConfig.DOM, onRetry: (attempt, err, delay) => onLog(`[Retry] Click like attempt ${attempt} failed. Retrying in ${Math.round(delay)}ms: ${err.message}`) }
-            )
+            await page.click('button[data-testid="like"]', { force: true })
+
+            // Verifikasi: tunggu tombol berubah menjadi "unlike"
+            const confirmedUnlike = await page.waitForSelector(
+              'button[data-testid="unlike"]',
+              { timeout: 5000 }
+            ).then(() => true).catch(() => false)
+
+            if (!confirmedUnlike) {
+              onLog(`[ERROR] Like pada tweet ${post.id} tidak terkonfirmasi — tombol tidak berubah ke state unlike. Cookie mungkin expired atau kena rate limit.`)
+              continue
+            }
 
             await saveLikedPost(db, 'twitter', targetUrl, post.id)
             onLog(`[SUKSES] Tweet ${post.id} berhasil di-like.`)
@@ -158,6 +175,10 @@ export async function processTwitter(context, db, targetUrl, onLog, options = {}
           }
         }
       } catch (err) {
+        if (isBrowserClosedError(err)) {
+          onLog('[SYSTEM] Browser ditutup. Menghentikan proses Twitter.')
+          break
+        }
         onLog(`[ERROR] Gagal memproses tweet ${post.id}: ${err.message}`)
       }
     }

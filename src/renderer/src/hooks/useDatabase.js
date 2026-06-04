@@ -1,10 +1,10 @@
 /**
- * useDatabase — thin re-export dari AppContext.
+ * useDatabase — thin wrapper di atas DataContext.
  *
- * Semua state history & stats kini hidup di AppContext sebagai single source of truth.
- * Hook ini dipertahankan untuk backward compatibility komponen yang sudah mengimportnya.
+ * Dipertahankan untuk backward compatibility komponen yang sudah mengimportnya.
+ * Untuk komponen baru, gunakan useDataContext() langsung.
  */
-import { useAppContext } from '../context/AppContext.jsx'
+import { useDataContext } from '../context/DataContext.jsx'
 
 export function useDatabase() {
   const {
@@ -16,7 +16,7 @@ export function useDatabase() {
     loadDbStats,
     deleteHistoryItem,
     clearAllHistory,
-  } = useAppContext()
+  } = useDataContext()
 
   return {
     history,

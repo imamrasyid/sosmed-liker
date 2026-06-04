@@ -3,21 +3,56 @@ import { app, shell } from 'electron'
 import fs from 'fs'
 import { join as pathJoin } from 'path'
 
+/**
+ * Parse isi teks Netscape HTTP Cookie File menjadi array cookie object
+ * yang siap dipakai oleh Playwright context.addCookies().
+ * @param {string} content - Isi file cookie sebagai string
+ * @returns {Array<object>} Array cookie object
+ */
+export function parseCookieContent(content) {
+  const cookies = []
+  const lines = content.split('\n')
+
+  for (let line of lines) {
+    line = line.trim()
+    if (line === '') continue
+
+    let isHttpOnly = false
+    if (line.startsWith('#HttpOnly_')) {
+      isHttpOnly = true
+      line = line.substring(10)
+    } else if (line.startsWith('#')) {
+      continue
+    }
+
+    const parts = line.split('\t')
+    if (parts.length === 7) {
+      cookies.push({
+        domain: parts[0],
+        path: parts[2],
+        secure: parts[3] === 'TRUE',
+        expires: parseInt(parts[4], 10) === 0 ? -1 : parseInt(parts[4], 10),
+        name: parts[5],
+        value: parts[6].replace('\r', ''),
+        httpOnly: isHttpOnly
+      })
+    }
+  }
+
+  return cookies
+}
+
 export async function parseAllCookiesFromFolder(userDataFolder) {
-  // ESM-safe: gunakan import di atas, bukan require()
   const path = { join: pathJoin }
 
-  // 1. Pastikan folder AppData writable ada
   if (!fs.existsSync(userDataFolder)) {
     fs.mkdirSync(userDataFolder, { recursive: true })
   }
 
-  // 2. Tentukan folder lokal instalasi
   const localFolder = app.isPackaged
     ? path.join(process.resourcesPath, 'cookie')
     : path.join(app.getAppPath(), 'resources/cookie')
 
-  // Pastikan folder lokal juga ada (jika writable, misal dalam mode dev atau portable)
   if (!fs.existsSync(localFolder)) {
     try {
       fs.mkdirSync(localFolder, { recursive: true })
@@ -26,13 +61,11 @@ export async function parseAllCookiesFromFolder(userDataFolder) {
     }
   }
 
-  // Kumpulkan semua file kuki dari kedua folder
   const sources = [userDataFolder]
   if (fs.existsSync(localFolder) && localFolder !== userDataFolder) {
     sources.push(localFolder)
   }
 
-  // Map untuk menyimpan file unik berdasarkan namanya (key: lowercase filename, value: { filePath, mtime })
   const uniqueCookieFiles = new Map()
 
   for (const sourceDir of sources) {
@@ -46,19 +79,12 @@ export async function parseAllCookiesFromFolder(userDataFolder) {
         const key = file.toLowerCase()
 
         if (uniqueCookieFiles.has(key)) {
-          // Jika file kuki dengan nama yang sama ada di kedua folder, pilih yang paling baru dimodifikasi!
           const existing = uniqueCookieFiles.get(key)
           if (stats.mtime > existing.mtime) {
-            uniqueCookieFiles.set(key, {
-              filePath,
-              mtime: stats.mtime
-            })
+            uniqueCookieFiles.set(key, { filePath, mtime: stats.mtime })
           }
         } else {
-          uniqueCookieFiles.set(key, {
-            filePath,
-            mtime: stats.mtime
-          })
+          uniqueCookieFiles.set(key, { filePath, mtime: stats.mtime })
         }
       }
     } catch (err) {
@@ -66,46 +92,15 @@ export async function parseAllCookiesFromFolder(userDataFolder) {
     }
   }
 
-  // Jika tidak ditemukan file kuki sama sekali di kedua folder
   if (uniqueCookieFiles.size === 0) {
-    // Buka folder AppData agar mempermudah pengguna
     shell.openPath(userDataFolder).catch(() => { })
     throw new Error(`[SISTEM] Tidak ditemukan file cookie (.txt) di folder kerja.\nFolder AppData telah dibuka secara otomatis. Silakan masukkan file cookie Netscape Anda ke dalamnya.`)
   }
 
   const cookies = []
-
-  for (const [key, fileInfo] of uniqueCookieFiles.entries()) {
+  for (const [, fileInfo] of uniqueCookieFiles.entries()) {
     const content = fs.readFileSync(fileInfo.filePath, 'utf-8')
-    const lines = content.split('\n')
-
-    for (let line of lines) {
-      line = line.trim()
-      if (line === '') {
-        continue
-      }
-
-      let isHttpOnly = false
-      if (line.startsWith('#HttpOnly_')) {
-        isHttpOnly = true
-        line = line.substring(10) // Hilangkan '#HttpOnly_'
-      } else if (line.startsWith('#')) {
-        continue
-      }
-
-      const parts = line.split('\t')
-      if (parts.length === 7) {
-        cookies.push({
-          domain: parts[0],
-          path: parts[2],
-          secure: parts[3] === 'TRUE',
-          expires: parseInt(parts[4], 10) === 0 ? -1 : parseInt(parts[4], 10),
-          name: parts[5],
-          value: parts[6].replace('\r', ''),
-          httpOnly: isHttpOnly
-        })
-      }
-    }
+    cookies.push(...parseCookieContent(content))
   }
 
   return cookies
@@ -116,37 +111,7 @@ export async function launchBrowserWithCookies(cookieFolderPath, headless = fals
 
   // Use profile cookies if provided, otherwise parse from folder
   if (profile && profile.cookie_content) {
-    // Parse cookies from profile content
-    const content = profile.cookie_content
-    const lines = content.split('\n')
-
-    for (let line of lines) {
-      line = line.trim()
-      if (line === '') {
-        continue
-      }
-
-      let isHttpOnly = false
-      if (line.startsWith('#HttpOnly_')) {
-        isHttpOnly = true
-        line = line.substring(10)
-      } else if (line.startsWith('#')) {
-        continue
-      }
-
-      const parts = line.split('\t')
-      if (parts.length === 7) {
-        cookies.push({
-          domain: parts[0],
-          path: parts[2],
-          secure: parts[3] === 'TRUE',
-          expires: parseInt(parts[4], 10) === 0 ? -1 : parseInt(parts[4], 10),
-          name: parts[5],
-          value: parts[6].replace('\r', ''),
-          httpOnly: isHttpOnly
-        })
-      }
-    }
+    cookies = parseCookieContent(profile.cookie_content)
   } else {
     // Fallback to folder-based cookie parsing
     cookies = await parseAllCookiesFromFolder(cookieFolderPath)

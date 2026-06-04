@@ -28,8 +28,8 @@ export function SettingsApp() {
   };
 
   const handleBackup = async () => {
-    if (!window.api?.backupDatabase) return;
-    const r = await window.api.backupDatabase();
+    if (!window.api?.database?.backup) return;
+    const r = await window.api.database.backup();
     if (r.cancelled) return;
     showToast(
       r.success
@@ -40,8 +40,8 @@ export function SettingsApp() {
   };
 
   const handleRestore = async () => {
-    if (!window.api?.restoreDatabase) return;
-    const r = await window.api.restoreDatabase();
+    if (!window.api?.database?.restore) return;
+    const r = await window.api.database.restore();
     if (r.cancelled) return;
     showToast(
       r.success

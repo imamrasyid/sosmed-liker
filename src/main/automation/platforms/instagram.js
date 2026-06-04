@@ -1,24 +1,23 @@
 import { isPostLiked, saveLikedPost, getActiveCommentTemplate } from '../../db/queries.js'
-import { retryWithBackoff, RetryConfig, isRetryableError } from '../../utils/retry.js'
+import { retryWithBackoff, RetryConfig, isBrowserClosedError } from '../../utils/retry.js'
 import { randomDelay } from '../../utils/helpers.js'
 
 export async function postComment(page, commentText, onLog) {
   try {
     onLog(`[Comment] Mencoba memposting komentar...`)
 
-    // Find comment input field
-    const commentInput = await page.waitForSelector('textarea[aria-label="Add a comment…"], textarea[placeholder="Add a comment…"]', { timeout: 5000 })
-
+    const commentInput = await page.waitForSelector(
+      'textarea[aria-label="Add a comment…"], textarea[placeholder="Add a comment…"]',
+      { timeout: 5000 }
+    )
     if (!commentInput) {
       onLog(`[Comment] Input komentar tidak ditemukan`)
       return false
     }
 
-    // Type comment with random typing simulation
     await commentInput.click()
     await randomDelay(500, 1000)
 
-    // Type character by character to simulate human typing
     for (let i = 0; i < commentText.length; i++) {
       await commentInput.type(commentText[i])
       await randomDelay(50, 150)
@@ -26,7 +25,6 @@ export async function postComment(page, commentText, onLog) {
 
     await randomDelay(1000, 2000)
 
-    // Find and click post button
     const postButton = await page.$('button:has-text("Post"), button[type="submit"]')
     if (postButton) {
       await postButton.click()
@@ -43,7 +41,7 @@ export async function postComment(page, commentText, onLog) {
   }
 }
 
-export async function processInstagram(context, db, targetUrl, onLog, options = {}) {
+export async function processInstagram(context, db, targetUrl, onLog, options = {}, isAborted = () => false) {
   const {
     minDelay = 3000,
     maxDelay = 6000,
@@ -53,9 +51,10 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
     maxScrollAttempts = 20,
     enableComments = false
   } = options
+
   const page = await context.newPage()
 
-  // Get active comment template if comments are enabled
+  // Load comment template jika fitur komentar aktif
   let commentTemplate = null
   if (enableComments) {
     try {
@@ -71,6 +70,7 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
   }
 
   try {
+    // ── Stage 1: Kunjungi profil & petakan postingan ──────────────────────────
     onLog(`[Stage 1] Mengunjungi profil Instagram: ${targetUrl}`)
     await retryWithBackoff(
       () => page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }),
@@ -92,14 +92,23 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
     let scrollAttempts = 0
     let lastHeight = await page.evaluate(() => document.body.scrollHeight)
 
-    while (toLikeList.length < limit && consecutiveSkips < consecutiveSkipsLimit && scrollAttempts < maxScrollAttempts) {
+    while (
+      toLikeList.length < limit &&
+      consecutiveSkips < consecutiveSkipsLimit &&
+      scrollAttempts < maxScrollAttempts
+    ) {
+      if (isAborted()) {
+        onLog('[SYSTEM] Proses dihentikan saat pemetaan.')
+        break
+      }
+
       try {
         const elements = await page.$$('a[href*="/p/"], a[href*="/reel/"]')
 
         for (const el of elements) {
           const href = await el.getAttribute('href')
           if (!href) continue
-          const match = href.match(/\/(?:p|reel)\/([^\/]+)/)
+          const match = href.match(/\/(?:p|reel)\/([^/]+)/)
           if (!match) continue
           const postId = match[1]
 
@@ -116,10 +125,8 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
             }
           } else {
             consecutiveSkips = 0
-            const postUrl = `https://www.instagram.com/p/${postId}/`
-            toLikeList.push({ id: postId, url: postUrl })
+            toLikeList.push({ id: postId, url: `https://www.instagram.com/p/${postId}/` })
             onLog(`[Map] Menemukan postingan baru: ${postId}. Total antrean: ${toLikeList.length}/${limit}`)
-
             if (toLikeList.length >= limit) {
               onLog(`[Map] Antrean postingan baru mencapai batas limit (${limit}). Menghentikan pemetaan.`)
               break
@@ -135,11 +142,8 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
         }
       }
 
-      if (consecutiveSkips >= consecutiveSkipsLimit || toLikeList.length >= limit) {
-        break
-      }
+      if (consecutiveSkips >= consecutiveSkipsLimit || toLikeList.length >= limit) break
 
-      // Scroll ke bawah untuk memuat konten lebih banyak
       onLog('Scrolling ke bawah...')
       try {
         await page.evaluate((step) => window.scrollBy(0, step), scrollStep)
@@ -169,9 +173,28 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
 
     onLog(`Pemetaan selesai. Menemukan ${toLikeList.length} postingan baru untuk di-like.`)
 
-    // Stage 2: Liking loop
+    // ── Stage 2: Buka setiap postingan & klik like ────────────────────────────
+    //
+    // Selector mengacu pada DOM dump nyata dari Instagram (dump.html).
+    // Pembeda kunci antara tombol like POST vs tombol like KOMENTAR:
+    //   - Post   : berada di dalam <section class="...xrvj5dj..."> (satu-satunya section di halaman)
+    //              SVG berukuran height="24" width="24"
+    //   - Comment: berada di dalam html-div dengan class xexx8yu xyri2b
+    //              SVG berukuran height="16" width="16"
+    //
+    // Selector 'section.xrvj5dj [role="button"]:has(svg[aria-label="..."])'
+    // adalah cara paling andal karena section.xrvj5dj hanya muncul sekali.
+
+    const POST_LIKE_SELECTOR = 'section.xrvj5dj [role="button"]:has(svg[aria-label="Suka"]), section.xrvj5dj [role="button"]:has(svg[aria-label="Like"])'
+    const POST_UNLIKE_SELECTOR = 'section.xrvj5dj [role="button"]:has(svg[aria-label="Batal Suka"]), section.xrvj5dj [role="button"]:has(svg[aria-label="Unlike"])'
+
     let successCount = 0
     for (let i = 0; i < toLikeList.length; i++) {
+      if (isAborted()) {
+        onLog('[SYSTEM] Proses dihentikan.')
+        break
+      }
+
       const post = toLikeList[i]
       onLog(`[Stage 2] [${i + 1}/${toLikeList.length}] Membuka detail postingan: ${post.url}`)
 
@@ -182,57 +205,66 @@ export async function processInstagram(context, db, targetUrl, onLog, options = 
         )
         await randomDelay(3000, 5000)
 
-        // Tunggu hingga tombol like/unlike utama dimuat
-        const mainButtonsSelector = 'svg[aria-label="Suka"][height="24"], svg[aria-label="Like"][height="24"], svg[aria-label="Batal Suka"][height="24"], svg[aria-label="Unlike"][height="24"]'
-        await retryWithBackoff(
-          () => page.waitForSelector(mainButtonsSelector, { timeout: 15000 }),
-          { ...RetryConfig.DOM, onRetry: (attempt, err, delay) => onLog(`[Retry] Wait for selector attempt ${attempt} failed. Retrying in ${Math.round(delay)}ms: ${err.message}`) }
+        // Tunggu action bar muncul
+        await page.waitForSelector(
+          `${POST_LIKE_SELECTOR}, ${POST_UNLIKE_SELECTOR}`,
+          { timeout: 15000 }
         ).catch(() => { })
 
-        // Cari tombol unlike
-        const unlikeSelector = 'svg[aria-label="Batal Suka"][height="24"], svg[aria-label="Unlike"][height="24"]'
-        const unlikeButton = await page.$(unlikeSelector)
-        if (unlikeButton) {
+        // Cek apakah sudah di-like
+        const unlikeBtn = await page.$(POST_UNLIKE_SELECTOR)
+        if (unlikeBtn) {
           onLog(`[SKIP] Postingan ${post.id} sudah di-like secara manual / sebelumnya. Menyimpan ke database...`)
           await saveLikedPost(db, 'instagram', targetUrl, post.id)
-        } else {
-          // Cari tombol like
-          const likeSelector = 'svg[aria-label="Suka"][height="24"], svg[aria-label="Like"][height="24"], svg[aria-label="Suka"], svg[aria-label="Like"]'
-          const likeButton = await page.$(likeSelector)
-          if (likeButton) {
-            onLog(`[ACTION] Melakukan Like pada postingan ${post.id}...`)
-            await retryWithBackoff(
-              () => page.locator(likeSelector).first().click({ force: true }),
-              { ...RetryConfig.DOM, onRetry: (attempt, err, delay) => onLog(`[Retry] Click like attempt ${attempt} failed. Retrying in ${Math.round(delay)}ms: ${err.message}`) }
-            )
-
-            await saveLikedPost(db, 'instagram', targetUrl, post.id)
-            onLog(`[SUKSES] Postingan ${post.id} berhasil di-like.`)
-            successCount++
-
-            // Post comment if enabled and template is available
-            if (enableComments && commentTemplate) {
-              await randomDelay(2000, 3000)
-              const commentSuccess = await postComment(page, commentTemplate.comment_text, onLog)
-              if (commentSuccess) {
-                onLog(`[Comment] Komentar berhasil diposting untuk ${post.id}`)
-              } else {
-                onLog(`[Comment] Gagal memposting komentar untuk ${post.id}. Melanjutkan...`)
-              }
-            }
-
-            // Delay dinamis antara setiap aksi like
-            await randomDelay(minDelay, maxDelay)
-          } else {
-            onLog(`[ERROR] Tombol Like tidak ditemukan pada postingan ${post.id}.`)
-          }
+          continue
         }
+
+        // Klik tombol like post
+        const likeBtn = await page.$(POST_LIKE_SELECTOR)
+        if (!likeBtn) {
+          onLog(`[ERROR] Tombol Like tidak ditemukan pada postingan ${post.id}.`)
+          continue
+        }
+
+        onLog(`[ACTION] Melakukan Like pada postingan ${post.id}...`)
+        await likeBtn.click({ force: true })
+
+        // Verifikasi state change: like → unlike
+        const confirmed = await page.waitForSelector(POST_UNLIKE_SELECTOR, { timeout: 6000 })
+          .then(() => true)
+          .catch(() => false)
+
+        if (!confirmed) {
+          onLog(`[ERROR] Like pada postingan ${post.id} tidak terkonfirmasi — tombol tidak berubah ke state Unlike. Cookie mungkin expired atau kena rate limit.`)
+          continue
+        }
+
+        await saveLikedPost(db, 'instagram', targetUrl, post.id)
+        onLog(`[SUKSES] Postingan ${post.id} berhasil di-like.`)
+        successCount++
+
+        if (enableComments && commentTemplate) {
+          await randomDelay(2000, 3000)
+          const ok = await postComment(page, commentTemplate.comment_text, onLog)
+          onLog(ok
+            ? `[Comment] Komentar berhasil diposting untuk ${post.id}`
+            : `[Comment] Gagal memposting komentar untuk ${post.id}. Melanjutkan...`
+          )
+        }
+
+        await randomDelay(minDelay, maxDelay)
+
       } catch (err) {
+        if (isBrowserClosedError(err)) {
+          onLog('[SYSTEM] Browser ditutup. Menghentikan proses Instagram.')
+          break
+        }
         onLog(`[ERROR] Gagal memproses postingan ${post.id}: ${err.message}`)
       }
     }
 
     onLog(`Proses Instagram selesai. Total postingan baru disukai: ${successCount}.`)
+
   } catch (error) {
     onLog(`[ERROR] Gagal memproses Instagram: ${error.message}`)
   } finally {

@@ -6,6 +6,8 @@ import { join } from 'path'
 import { app } from 'electron'
 import * as dbQueries from '../db/queries.js'
 import { detectPlatform } from '../utils/helpers.js'
+import { AUTOMATION_EVENTS } from '../utils/constants.js'
+import { isBrowserClosedError } from '../utils/retry.js'
 
 export class AutomationManager {
   constructor(db, sendLogToUI) {
@@ -14,6 +16,12 @@ export class AutomationManager {
     this.browser = null
     this.context = null
     this.isRunning = false
+    this._aborted = false  // set true saat browser ditutup manual
+  }
+
+  /** Dipakai platform processor untuk cek apakah harus berhenti */
+  isAborted() {
+    return this._aborted
   }
 
   log(message) {
@@ -35,8 +43,10 @@ export class AutomationManager {
   /**
    * Method inti: memproses satu URL tanpa menyentuh isRunning.
    * Dipakai oleh start() maupun startBatch().
+   * @param {string} targetUrl
+   * @param {object|null} configOverride - override config per-batch, null = pakai global
    */
-  async _processUrl(targetUrl) {
+  async _processUrl(targetUrl, configOverride = null) {
     const platform = this._detectPlatform(targetUrl)
 
     if (!platform) {
@@ -62,19 +72,24 @@ export class AutomationManager {
       this.log(`[INFO] Target URL ada di whitelist. Melanjutkan proses.`)
     }
 
-    // Ambil konfigurasi dinamis dari database SQLite — 1 batch query, bukan 8 terpisah
+    // Ambil konfigurasi — override per-batch jika ada, fallback ke global
     this.log('Membaca konfigurasi bot dari database...')
     const configRaw = await dbQueries.getAllAutomationConfig(this.db)
-    const minDelay = parseInt(configRaw.min_delay || '3000', 10)
-    const maxDelay = parseInt(configRaw.max_delay || '6000', 10)
-    const limit = parseInt(configRaw.limit || '20', 10)
-    const headless = (configRaw.headless || 'false') === 'true'
-    const consecutiveSkipsLimit = parseInt(configRaw.consecutive_skips_limit || '5', 10)
-    const scrollStep = parseInt(configRaw.scroll_step || '1000', 10)
-    const maxScrollAttempts = parseInt(configRaw.max_scroll_attempts || '20', 10)
-    const userAgent = configRaw.browser_user_agent || 'Default'
 
-    this.log(`Konfigurasi aktif -> Delay: ${minDelay}-${maxDelay}ms, Batas Post: ${limit}, Headless: ${headless}, Skip Limit: ${consecutiveSkipsLimit}, Scroll: ${scrollStep}px, Maks Gulir: ${maxScrollAttempts}, UA: ${userAgent}`)
+    // Config override dari batch job menimpa nilai global untuk key yang diset
+    const merged = configOverride ? { ...configRaw, ...configOverride } : configRaw
+
+    const minDelay = parseInt(merged.min_delay || '3000', 10)
+    const maxDelay = parseInt(merged.max_delay || '6000', 10)
+    const limit = parseInt(merged.limit || '20', 10)
+    const headless = (merged.headless || 'false') === 'true'
+    const consecutiveSkipsLimit = parseInt(merged.consecutive_skips_limit || '5', 10)
+    const scrollStep = parseInt(merged.scroll_step || '1000', 10)
+    const maxScrollAttempts = parseInt(merged.max_scroll_attempts || '20', 10)
+    const userAgent = merged.browser_user_agent || 'Default'
+
+    const configSource = configOverride ? '[Batch Override]' : '[Global]'
+    this.log(`Konfigurasi aktif ${configSource} -> Delay: ${minDelay}-${maxDelay}ms, Batas Post: ${limit}, Headless: ${headless}, Skip Limit: ${consecutiveSkipsLimit}, Scroll: ${scrollStep}px, Maks Gulir: ${maxScrollAttempts}, UA: ${userAgent}`)
 
     // Get active profile for the platform
     const activeProfile = await dbQueries.getActiveProfile(this.db, platform)
@@ -101,33 +116,52 @@ export class AutomationManager {
     this.browser = browser
     this.context = context
 
+    // Deteksi browser ditutup manual (non-headless window di-close user)
+    // Reset flag SEBELUM pasang listener baru
+    this._aborted = false
+    this.browser.on('disconnected', () => {
+      // Hanya trigger abort kalau browser ditutup dari LUAR (bukan dari _processUrl sendiri)
+      // Tandanya: this.browser masih tidak null (belum di-cleanup oleh finally block)
+      if (this.isRunning && !this._aborted && this.browser !== null) {
+        this._aborted = true
+        this.log('[SYSTEM] Browser ditutup secara eksternal. Menghentikan proses...')
+        this.isRunning = false
+        if (this.sendLogToUI) {
+          this.sendLogToUI(AUTOMATION_EVENTS.STOPPED)
+        }
+      }
+    })
+
     const processOptions = { minDelay, maxDelay, limit, consecutiveSkipsLimit, scrollStep, maxScrollAttempts }
 
     try {
       let normalizedUrl = targetUrl
 
       if (platform === 'instagram') {
-        await processInstagram(this.context, this.db, normalizedUrl, this.log.bind(this), processOptions)
+        await processInstagram(this.context, this.db, normalizedUrl, this.log.bind(this), processOptions, this.isAborted.bind(this))
       } else if (platform === 'twitter') {
-        await processTwitter(this.context, this.db, normalizedUrl, this.log.bind(this), processOptions)
+        await processTwitter(this.context, this.db, normalizedUrl, this.log.bind(this), processOptions, this.isAborted.bind(this))
       } else if (platform === 'threads') {
         if (targetUrl.toLowerCase().includes('threads.com')) {
           normalizedUrl = targetUrl.replace(/threads\.com/i, 'threads.net')
           this.log(`[Manager] Mendeteksi domain threads.com. Mengoreksi otomatis target ke: ${normalizedUrl}`)
         }
-        await processThreads(this.context, this.db, normalizedUrl, this.log.bind(this), processOptions)
+        await processThreads(this.context, this.db, normalizedUrl, this.log.bind(this), processOptions, this.isAborted.bind(this))
       }
     } finally {
       this.log('Menutup browser...')
+      const browserToClose = this.browser
+      // Null-kan referensi DULU sebelum close, agar listener 'disconnected'
+      // tidak mengira ini penutupan eksternal dan tidak men-trigger abort.
+      this.browser = null
+      this.context = null
       try {
-        if (this.browser) {
-          await this.browser.close()
+        if (browserToClose) {
+          await browserToClose.close()
         }
       } catch (closeError) {
         this.log(`[INFO] Kendala saat menutup browser: ${closeError.message}`)
       }
-      this.browser = null
-      this.context = null
     }
 
     return true
@@ -151,7 +185,7 @@ export class AutomationManager {
       this.log('Proses otomatisasi selesai.')
       // Kirim event selesai ke UI (tidak bergantung pada string log)
       if (this.sendLogToUI) {
-        this.sendLogToUI('__AUTOMATION_DONE__')
+        this.sendLogToUI(AUTOMATION_EVENTS.DONE)
       }
     }
 
@@ -161,6 +195,7 @@ export class AutomationManager {
   async stop() {
     if (this.isRunning && this.browser) {
       this.log('Menghentikan paksa proses...')
+      this._aborted = true
       try {
         await this.browser.close()
       } catch (closeError) {
@@ -171,7 +206,7 @@ export class AutomationManager {
       this.isRunning = false
       this.log('Proses dihentikan secara manual.')
       if (this.sendLogToUI) {
-        this.sendLogToUI('__AUTOMATION_STOPPED__')
+        this.sendLogToUI(AUTOMATION_EVENTS.STOPPED)
       }
     }
   }
@@ -191,6 +226,17 @@ export class AutomationManager {
     this.isRunning = true
     this.log(`Memulai batch job: ${batchJob.name} (${batchJob.total_urls} URLs)`)
 
+    // Parse config override jika ada
+    let batchConfigOverride = null
+    if (batchJob.config_override) {
+      try {
+        batchConfigOverride = JSON.parse(batchJob.config_override)
+        this.log(`[Batch] Menggunakan config override: ${JSON.stringify(batchConfigOverride)}`)
+      } catch {
+        this.log(`[WARN] config_override tidak valid JSON, menggunakan config global.`)
+      }
+    }
+
     try {
       await dbQueries.updateBatchJobStatus(this.db, batchId, 'running')
 
@@ -201,9 +247,9 @@ export class AutomationManager {
       let failed = 0
 
       for (const batchUrl of batchUrls) {
-        // Guard: hentikan loop jika user memanggil stop() di tengah batch
-        if (!this.isRunning) {
-          this.log('[SYSTEM] Batch dihentikan secara manual.')
+        // Guard: hentikan loop jika user memanggil stop() atau browser ditutup manual
+        if (!this.isRunning || this._aborted) {
+          this.log('[SYSTEM] Batch dihentikan.')
           await dbQueries.updateBatchJobStatus(this.db, batchId, 'failed')
           break
         }
@@ -211,8 +257,7 @@ export class AutomationManager {
         this.log(`[${processed + 1}/${batchJob.total_urls}] Memproses: ${batchUrl.url}`)
 
         try {
-          // Gunakan _processUrl agar tidak terhalang guard isRunning
-          const result = await this._processUrl(batchUrl.url)
+          const result = await this._processUrl(batchUrl.url, batchConfigOverride)
 
           if (result) {
             await dbQueries.updateBatchUrlStatus(this.db, batchUrl.id, 'completed')
@@ -244,7 +289,7 @@ export class AutomationManager {
       this.isRunning = false
       this.log('Batch job selesai.')
       if (this.sendLogToUI) {
-        this.sendLogToUI('__AUTOMATION_DONE__')
+        this.sendLogToUI(AUTOMATION_EVENTS.DONE)
       }
     }
 

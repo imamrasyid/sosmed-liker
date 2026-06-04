@@ -70,7 +70,7 @@ export function Header() {
 
         {/* Window controls */}
         <button
-          onClick={() => window.api.minimizeWindow()}
+          onClick={() => window.api.app.minimize()}
           className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:text-slate-300 hover:bg-white/[0.06] transition-all"
         >
           <svg
@@ -84,7 +84,7 @@ export function Header() {
           </svg>
         </button>
         <button
-          onClick={() => window.api.maximizeWindow()}
+          onClick={() => window.api.app.maximize()}
           className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:text-slate-300 hover:bg-white/[0.06] transition-all"
         >
           <svg
@@ -98,7 +98,7 @@ export function Header() {
           </svg>
         </button>
         <button
-          onClick={() => window.api.closeWindow()}
+          onClick={() => window.api.app.close()}
           className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
         >
           <svg

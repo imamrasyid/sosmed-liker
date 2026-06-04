@@ -34,7 +34,22 @@ export function registerProfileHandlers(getDb) {
         try {
             const db = getDb()
             if (!db) return { success: false, error: 'Database not initialized' }
-            const id = await dbQueries.saveProfile(db, platform, profileName, cookieContent)
+
+            // Validasi input di layer IPC
+            if (!profileName || typeof profileName !== 'string' || profileName.trim().length === 0) {
+                return { success: false, error: 'Profile name is required' }
+            }
+            if (profileName.trim().length > 100) {
+                return { success: false, error: 'Profile name too long (max 100 characters)' }
+            }
+            if (!cookieContent || typeof cookieContent !== 'string' || cookieContent.trim().length === 0) {
+                return { success: false, error: 'Cookie content is required' }
+            }
+            if (cookieContent.length > 500_000) { // ~500KB limit
+                return { success: false, error: 'Cookie content too large (max 500KB)' }
+            }
+
+            const id = await dbQueries.saveProfile(db, platform, profileName.trim(), cookieContent.trim())
             return { success: true, id }
         } catch (err) {
             return { success: false, error: err.message }
@@ -45,7 +60,26 @@ export function registerProfileHandlers(getDb) {
         try {
             const db = getDb()
             if (!db) return { success: false, error: 'Database not initialized' }
+
+            // Cek apakah profil yang dihapus sedang aktif
+            const profile = await dbQueries.getProfileById(db, profileId)
+            const wasActive = profile?.is_active === 1
+
             await dbQueries.deleteProfile(db, profileId)
+            return { success: true, wasActive }
+        } catch (err) {
+            return { success: false, error: err.message }
+        }
+    })
+
+    ipcMain.handle('update-profile-cookie', async (_event, profileId, cookieContent) => {
+        try {
+            const db = getDb()
+            if (!db) return { success: false, error: 'Database not initialized' }
+            if (!cookieContent || cookieContent.length > 500_000) {
+                return { success: false, error: 'Invalid cookie content' }
+            }
+            await dbQueries.updateProfileCookie(db, profileId, cookieContent.trim())
             return { success: true }
         } catch (err) {
             return { success: false, error: err.message }

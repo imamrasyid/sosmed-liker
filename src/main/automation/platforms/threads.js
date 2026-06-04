@@ -1,8 +1,8 @@
 import { isPostLiked, saveLikedPost } from '../../db/queries.js'
-import { retryWithBackoff, RetryConfig } from '../../utils/retry.js'
+import { retryWithBackoff, RetryConfig, isBrowserClosedError } from '../../utils/retry.js'
 import { randomDelay } from '../../utils/helpers.js'
 
-export async function processThreads(context, db, targetUrl, onLog, options = {}) {
+export async function processThreads(context, db, targetUrl, onLog, options = {}, isAborted = () => false) {
   const {
     minDelay = 3000,
     maxDelay = 6000,
@@ -33,6 +33,12 @@ export async function processThreads(context, db, targetUrl, onLog, options = {}
     let lastHeight = await page.evaluate(() => document.body.scrollHeight)
 
     while (toLikeList.length < limit && consecutiveSkips < consecutiveSkipsLimit && scrollAttempts < maxScrollAttempts) {
+      // Guard: hentikan pemetaan jika browser ditutup
+      if (isAborted()) {
+        onLog('[SYSTEM] Proses dihentikan saat pemetaan.')
+        break
+      }
+
       try {
         const postLinks = await page.$$('a[href*="/post/"]:has(time)')
 
@@ -114,6 +120,12 @@ export async function processThreads(context, db, targetUrl, onLog, options = {}
     // Stage 2: Liking loop
     let successCount = 0
     for (let i = 0; i < toLikeList.length; i++) {
+      // Guard: hentikan jika browser ditutup atau stop() dipanggil
+      if (isAborted()) {
+        onLog('[SYSTEM] Proses dihentikan.')
+        break
+      }
+
       const post = toLikeList[i]
       onLog(`[Stage 2] [${i + 1}/${toLikeList.length}] Membuka detail postingan Threads: ${post.url}`)
 
@@ -127,10 +139,7 @@ export async function processThreads(context, db, targetUrl, onLog, options = {}
         // Tunggu tombol like/unlike
         const likeSelector = 'div[role="button"]:has(svg[aria-label="Suka"]), div[role="button"]:has(svg[aria-label="Like"]), svg[aria-label="Suka"], svg[aria-label="Like"]'
         const unlikeSelector = 'div[role="button"]:has(svg[aria-label="Batal suka"]), div[role="button"]:has(svg[aria-label="Unlike"]), svg[aria-label="Batal suka"], svg[aria-label="Unlike"]'
-        await retryWithBackoff(
-          () => page.waitForSelector(`${likeSelector}, ${unlikeSelector}`, { timeout: 15000 }),
-          { ...RetryConfig.DOM, onRetry: (attempt, err, delay) => onLog(`[Retry] Wait for selector attempt ${attempt} failed. Retrying in ${Math.round(delay)}ms: ${err.message}`) }
-        ).catch(() => { })
+        await page.waitForSelector(`${likeSelector}, ${unlikeSelector}`, { timeout: 15000 }).catch(() => { })
 
         // Cek manual unlike
         const unlikeSvg = await page.$(unlikeSelector)
@@ -141,10 +150,18 @@ export async function processThreads(context, db, targetUrl, onLog, options = {}
           const likeButton = await page.$(likeSelector)
           if (likeButton) {
             onLog(`[ACTION] Melakukan Like pada postingan Threads ${post.id}...`)
-            await retryWithBackoff(
-              () => likeButton.click({ force: true }),
-              { ...RetryConfig.DOM, onRetry: (attempt, err, delay) => onLog(`[Retry] Click like attempt ${attempt} failed. Retrying in ${Math.round(delay)}ms: ${err.message}`) }
-            )
+            await likeButton.click({ force: true })
+
+            // Verifikasi: tunggu tombol berubah menjadi "Batal suka" / "Unlike"
+            const confirmedUnlike = await page.waitForSelector(
+              unlikeSelector,
+              { timeout: 5000 }
+            ).then(() => true).catch(() => false)
+
+            if (!confirmedUnlike) {
+              onLog(`[ERROR] Like pada postingan Threads ${post.id} tidak terkonfirmasi — tombol tidak berubah ke state Unlike. Cookie mungkin expired atau kena rate limit.`)
+              continue
+            }
 
             await saveLikedPost(db, 'threads', targetUrl, post.id)
             onLog(`[SUKSES] Postingan Threads ${post.id} berhasil di-like.`)
@@ -156,6 +173,10 @@ export async function processThreads(context, db, targetUrl, onLog, options = {}
           }
         }
       } catch (err) {
+        if (isBrowserClosedError(err)) {
+          onLog('[SYSTEM] Browser ditutup. Menghentikan proses Threads.')
+          break
+        }
         onLog(`[ERROR] Gagal memproses postingan Threads ${post.id}: ${err.message}`)
       }
     }

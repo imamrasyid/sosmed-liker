@@ -27,15 +27,13 @@ export function registerConfigHandlers(getDb) {
         }
     })
 
-    // Batch fetch semua config dalam 1 round-trip — menggantikan 8 IPC call terpisah
+    // Batch fetch semua config dalam 1 round-trip via query IN (...)
     ipcMain.handle('get-all-config', async () => {
         const db = getDb()
         if (!db) return { success: false, error: 'Database not initialized' }
         try {
-            const entries = await Promise.all(
-                VALID_CONFIG_KEYS.map(async (key) => [key, await dbQueries.getConfig(db, key)])
-            )
-            return { success: true, data: Object.fromEntries(entries) }
+            const data = await dbQueries.getAllAutomationConfig(db)
+            return { success: true, data }
         } catch (err) {
             console.error('Failed to get all config:', err)
             return { success: false, error: err.message }

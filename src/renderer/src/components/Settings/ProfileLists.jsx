@@ -28,8 +28,8 @@ export function ProfileLists() {
     try {
       const r =
         listType === "blacklist"
-          ? await window.api.getBlacklist(platform)
-          : await window.api.getWhitelist(platform);
+          ? await window.api.lists.getBlacklist(platform)
+          : await window.api.lists.getWhitelist(platform);
       if (r.success) setLists(r.data ?? []);
     } catch {
     } finally {
@@ -39,7 +39,7 @@ export function ProfileLists() {
 
   const checkWhitelistStatus = async () => {
     try {
-      const r = await window.api.hasWhitelistEnabled(platform);
+      const r = await window.api.lists.hasWhitelistEnabled(platform);
       if (r.success) setWhitelistEnabled(r.enabled);
     } catch {}
   };
@@ -53,12 +53,12 @@ export function ProfileLists() {
     try {
       const r =
         listType === "blacklist"
-          ? await window.api.addToBlacklist(
+          ? await window.api.lists.addToBlacklist(
               platform,
               profileUrl,
               profileName || null,
             )
-          : await window.api.addToWhitelist(
+          : await window.api.lists.addToWhitelist(
               platform,
               profileUrl,
               profileName || null,
@@ -82,7 +82,7 @@ export function ProfileLists() {
   const handleRemove = async (item) => {
     setLoading(true);
     try {
-      const r = await window.api.removeFromList(
+      const r = await window.api.lists.removeFromList(
         listType,
         platform,
         item.profile_url,

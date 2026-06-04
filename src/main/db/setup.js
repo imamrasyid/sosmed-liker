@@ -68,6 +68,8 @@ const SCHEMA_SQL = `
     processed_urls INTEGER DEFAULT 0,
     successful_urls INTEGER DEFAULT 0,
     failed_urls INTEGER DEFAULT 0,
+    -- Config override per batch (JSON). NULL berarti ikut config global.
+    config_override TEXT DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     started_at DATETIME,
     completed_at DATETIME
@@ -136,6 +138,18 @@ export function initDb() {
         // Seed default config — INSERT OR IGNORE agar tidak overwrite nilai yang sudah ada
         for (const [key, value] of DEFAULT_CONFIG) {
           await run(db, 'INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)', [key, value])
+        }
+
+        // Migrasi: tambah kolom config_override ke batch_jobs jika belum ada
+        // (ALTER TABLE IF NOT EXISTS belum didukung SQLite, cek via PRAGMA)
+        const batchCols = await new Promise((res, rej) => {
+          db.all('PRAGMA table_info(batch_jobs)', (err, rows) => {
+            if (err) rej(err); else res(rows || [])
+          })
+        })
+        const hasConfigOverride = batchCols.some(col => col.name === 'config_override')
+        if (!hasConfigOverride) {
+          await run(db, 'ALTER TABLE batch_jobs ADD COLUMN config_override TEXT DEFAULT NULL')
         }
 
         resolve(db)

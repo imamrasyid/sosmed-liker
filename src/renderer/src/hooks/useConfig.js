@@ -39,12 +39,10 @@ export function useConfig() {
 
   const loadConfigurations = useCallback(async () => {
     if (!window.api) return
-
     setLoading(true)
     setError(null)
     try {
-      // 1 round-trip via get-all-config, bukan 8 call terpisah
-      const result = await window.api.getAllConfig()
+      const result = await window.api.config.getAll()
       if (result?.success) {
         setConfig(parseConfigData(result.data))
       } else {
@@ -59,7 +57,7 @@ export function useConfig() {
   }, [])
 
   const handleSaveConfig = useCallback(async (key, value) => {
-    if (!window.api?.saveConfig) return false
+    if (!window.api?.config?.save) return false
 
     if (!validateConfigValue(key, value)) {
       setError(`Invalid value for ${key}`)
@@ -69,7 +67,7 @@ export function useConfig() {
     setLoading(true)
     setError(null)
     try {
-      const result = await window.api.saveConfig(key, value.toString())
+      const result = await window.api.config.save(key, value.toString())
       if (!result?.success) throw new Error(result?.error || 'Save failed')
 
       const stateKey = KEY_MAP[key] || key

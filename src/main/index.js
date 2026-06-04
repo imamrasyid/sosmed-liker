@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, copyFileSync, writeFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDb } from './db/setup.js'
 import { AutomationManager } from './automation/manager.js'
+import { AUTOMATION_EVENTS } from './utils/constants.js'
 import { registerAutomationHandlers } from './ipc/automation.js'
 import { registerConfigHandlers } from './ipc/config.js'
 import { registerHistoryHandlers } from './ipc/history.js'
@@ -113,11 +114,11 @@ app.whenReady().then(async () => {
     automationManager = new AutomationManager(db, (message) => {
       if (!mainWindow) return
       // Event status khusus — tidak diteruskan sebagai log biasa ke UI
-      if (message === '__AUTOMATION_DONE__') {
+      if (message === AUTOMATION_EVENTS.DONE) {
         mainWindow.webContents.send('automation-done')
         return
       }
-      if (message === '__AUTOMATION_STOPPED__') {
+      if (message === AUTOMATION_EVENTS.STOPPED) {
         mainWindow.webContents.send('automation-stopped')
         return
       }

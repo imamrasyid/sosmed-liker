@@ -14,11 +14,11 @@ import * as dbQueries from '../db/queries.js'
 export function registerDatabaseHandlers(getDb, setDb, getManager, getWindow) {
     // ── Batch Jobs ────────────────────────────────────────────────────────────
 
-    ipcMain.handle('create-batch-job', async (_event, name, platform, urls) => {
+    ipcMain.handle('create-batch-job', async (_event, name, platform, urls, configOverride) => {
         try {
             const db = getDb()
             if (!db) return { success: false, error: 'Database not initialized' }
-            const batchId = await dbQueries.createBatchJob(db, name, platform, urls)
+            const batchId = await dbQueries.createBatchJob(db, name, platform, urls, configOverride || null)
             return { success: true, batchId }
         } catch (err) {
             return { success: false, error: err.message }

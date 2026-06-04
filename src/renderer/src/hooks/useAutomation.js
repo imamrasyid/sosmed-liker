@@ -9,8 +9,8 @@ export function useAutomation() {
   // Sinkronisasi isRunning dari main process saat mount — mencegah state stuck
   // jika window reload/crash saat automation berjalan
   useEffect(() => {
-    if (!window.api?.getAutomationStatus) return
-    window.api.getAutomationStatus().then((res) => {
+    if (!window.api?.automation?.getStatus) return
+    window.api.automation.getStatus().then((res) => {
       if (res?.isRunning !== undefined) setIsRunning(res.isRunning)
     }).catch(() => { })
   }, [])
@@ -27,7 +27,7 @@ export function useAutomation() {
     setLogs([{ type: 'SYSTEM', message: `Memulai otomatisasi untuk target: ${targetUrl}...`, time: new Date().toLocaleTimeString() }])
 
     try {
-      const response = await window.api.startAutomation(targetUrl)
+      const response = await window.api.automation.start(targetUrl)
       if (!response.success) {
         setLogs(prev => [...prev, { type: 'ERROR', message: response.error, time: new Date().toLocaleTimeString() }])
         setIsRunning(false)
@@ -46,7 +46,7 @@ export function useAutomation() {
   const handleStop = useCallback(async () => {
     try {
       setLogs(prev => [...prev, { type: 'SYSTEM', message: 'Menghentikan proses otomatisasi...', time: new Date().toLocaleTimeString() }])
-      await window.api.stopAutomation()
+      await window.api.automation.stop()
 
       // Fallback: kalau event onAutomationStopped tidak datang dalam 8 detik
       // (misal browser crash sebelum sempat kirim event), set isRunning false secara paksa
@@ -73,8 +73,8 @@ export function useAutomation() {
 
     const unsubscribers = []
 
-    if (window.api.onAutomationLog) {
-      const unsub = window.api.onAutomationLog((message) => {
+    if (window.api.automation?.onLog) {
+      const unsub = window.api.automation.onLog((message) => {
         let type = 'SYSTEM'
         let cleanMsg = message
 
@@ -88,8 +88,8 @@ export function useAutomation() {
       unsubscribers.push(unsub)
     }
 
-    if (window.api.onAutomationDone) {
-      const unsub = window.api.onAutomationDone(() => {
+    if (window.api.automation?.onDone) {
+      const unsub = window.api.automation.onDone(() => {
         clearTimeout(stopFallbackRef.current)
         setIsRunning(false)
         setLogs(prev => [...prev, { type: 'SYSTEM', message: 'Proses selesai.', time: new Date().toLocaleTimeString() }])
@@ -97,8 +97,8 @@ export function useAutomation() {
       unsubscribers.push(unsub)
     }
 
-    if (window.api.onAutomationStopped) {
-      const unsub = window.api.onAutomationStopped(() => {
+    if (window.api.automation?.onStopped) {
+      const unsub = window.api.automation.onStopped(() => {
         clearTimeout(stopFallbackRef.current)
         setIsRunning(false)
         setLogs(prev => [...prev, { type: 'SYSTEM', message: 'Proses dihentikan.', time: new Date().toLocaleTimeString() }])

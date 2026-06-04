@@ -150,9 +150,27 @@ export async function getActiveProfile(db, platform) {
 }
 
 export async function saveProfile(db, platform, profileName, cookieContent) {
+  // Cek apakah profil dengan nama ini sudah ada untuk platform ini
+  const existing = await get(
+    db,
+    'SELECT id, is_active FROM profiles WHERE platform = ? AND profile_name = ?',
+    [platform, profileName]
+  )
+
+  if (existing) {
+    // Update content saja, preserve is_active agar profil aktif tidak tiba-tiba nonaktif
+    await run(
+      db,
+      'UPDATE profiles SET cookie_content = ? WHERE id = ?',
+      [cookieContent, existing.id]
+    )
+    return existing.id
+  }
+
+  // Profil baru — insert biasa
   const { lastID } = await run(
     db,
-    'INSERT OR REPLACE INTO profiles (platform, profile_name, cookie_content) VALUES (?, ?, ?)',
+    'INSERT INTO profiles (platform, profile_name, cookie_content) VALUES (?, ?, ?)',
     [platform, profileName, cookieContent]
   )
   return lastID
@@ -163,14 +181,26 @@ export async function deleteProfile(db, profileId) {
   return true
 }
 
+export async function getProfileById(db, profileId) {
+  const row = await get(db, 'SELECT * FROM profiles WHERE id = ?', [profileId])
+  return row || null
+}
+
+export async function updateProfileCookie(db, profileId, cookieContent) {
+  await run(db, 'UPDATE profiles SET cookie_content = ? WHERE id = ?', [cookieContent, profileId])
+  return true
+}
+
 export async function setActiveProfile(db, profileId) {
+  // Validasi profileId exist sebelum menonaktifkan semua profil
+  const target = await get(db, 'SELECT id, platform FROM profiles WHERE id = ?', [profileId])
+  if (!target) {
+    throw new Error(`Profile ID ${profileId} not found`)
+  }
+
   // Atomik: nonaktifkan semua profil platform ini, lalu aktifkan yang dipilih
   await transaction(db, async () => {
-    await run(
-      db,
-      'UPDATE profiles SET is_active = 0 WHERE platform = (SELECT platform FROM profiles WHERE id = ?)',
-      [profileId]
-    )
+    await run(db, 'UPDATE profiles SET is_active = 0 WHERE platform = ?', [target.platform])
     await run(db, 'UPDATE profiles SET is_active = 1 WHERE id = ?', [profileId])
   })
   return true
@@ -229,11 +259,12 @@ export async function migrateCookiesToProfiles(db, cookieFolderPath) {
   const VALID_PLATFORMS = ['instagram', 'twitter', 'threads']
 
   let migratedCount = 0
+  let failedCount = 0
+  const failedFiles = []
 
   for (const file of files) {
     const platform = file.replace('.txt', '').toLowerCase()
 
-    // Lewati file yang bukan nama platform yang dikenali (misal: backup.txt, notes.txt)
     if (!VALID_PLATFORMS.includes(platform)) {
       console.log(`Skipping non-platform file: ${file}`)
       continue
@@ -253,12 +284,27 @@ export async function migrateCookiesToProfiles(db, cookieFolderPath) {
         migratedCount++
       } catch (err) {
         console.error(`Error migrating ${platform}:`, err)
+        failedCount++
+        failedFiles.push(file)
       }
     }
   }
 
-  await run(db, 'UPDATE config SET value = ? WHERE key = ?', ['true', 'migration_cookies_to_profiles'])
-  return { success: true, migrated: migratedCount, message: `Migrated ${migratedCount} cookie files to profiles` }
+  // Set flag migration selesai hanya jika tidak ada yang gagal
+  if (failedCount === 0) {
+    await run(db, 'UPDATE config SET value = ? WHERE key = ?', ['true', 'migration_cookies_to_profiles'])
+  }
+
+  const message = failedCount > 0
+    ? `Migrated ${migratedCount} files. Failed: ${failedFiles.join(', ')}`
+    : `Migrated ${migratedCount} cookie files to profiles`
+
+  return {
+    success: failedCount === 0,
+    migrated: migratedCount,
+    failed: failedCount,
+    message
+  }
 }
 
 export async function getMigrationStatus(db) {
@@ -268,12 +314,12 @@ export async function getMigrationStatus(db) {
 
 // ── Batch Jobs ────────────────────────────────────────────────────────────────
 
-export async function createBatchJob(db, name, platform, urls) {
+export async function createBatchJob(db, name, platform, urls, configOverride = null) {
   return transaction(db, async () => {
     const { lastID: batchId } = await run(
       db,
-      'INSERT INTO batch_jobs (name, platform, status, total_urls) VALUES (?, ?, ?, ?)',
-      [name, platform, 'pending', urls.length]
+      'INSERT INTO batch_jobs (name, platform, status, total_urls, config_override) VALUES (?, ?, ?, ?, ?)',
+      [name, platform, 'pending', urls.length, configOverride ? JSON.stringify(configOverride) : null]
     )
     for (const url of urls) {
       await run(db, 'INSERT INTO batch_urls (batch_id, url) VALUES (?, ?)', [batchId, url])

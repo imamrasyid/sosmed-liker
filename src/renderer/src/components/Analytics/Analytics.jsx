@@ -54,9 +54,9 @@ export function Analytics() {
     setLoading(true);
     try {
       const [dailyResult, platformResult, batchResult] = await Promise.all([
-        window.api.getLikedPostsDaily(30),
-        window.api.getLikedPostsCountByPlatform(),
-        window.api.getBatchJobStats(),
+        window.api.analytics.getDaily(30),
+        window.api.analytics.getCountByPlatform(),
+        window.api.analytics.getBatchStats(),
       ]);
 
       if (dailyResult.success) {
@@ -88,8 +88,8 @@ export function Analytics() {
 
   // Auto-refresh chart setelah automation selesai
   useEffect(() => {
-    if (!window.api?.onAutomationDone) return;
-    const unsub = window.api.onAutomationDone(() => loadAnalyticsData());
+    if (!window.api?.automation?.onDone) return;
+    const unsub = window.api.automation.onDone(() => loadAnalyticsData());
     return () => {
       if (unsub) unsub();
     };
@@ -256,8 +256,9 @@ export function Analytics() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) =>
-                    `${name}: ${(percent * 100).toFixed(0)}%`
+                  nameKey="platform"
+                  label={({ platform, percent }) =>
+                    `${platform}: ${(percent * 100).toFixed(0)}%`
                   }
                   outerRadius={75}
                   dataKey="count"
@@ -269,7 +270,13 @@ export function Analytics() {
                     />
                   ))}
                 </Pie>
-                <Tooltip {...TOOLTIP_STYLE} />
+                <Tooltip
+                  {...TOOLTIP_STYLE}
+                  formatter={(value, name, props) => [
+                    value,
+                    props.payload.platform,
+                  ]}
+                />
               </PieChart>
             </ResponsiveContainer>
           )}

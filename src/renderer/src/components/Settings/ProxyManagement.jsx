@@ -24,8 +24,8 @@ export function ProxyManagement() {
     setLoading(true);
     try {
       const [pRes, aRes] = await Promise.all([
-        window.api.getProxies(),
-        window.api.getActiveProxy(),
+        window.api.proxies.getAll(),
+        window.api.proxies.getActive(),
       ]);
       if (pRes.success) setProxies(pRes.data ?? []);
       if (aRes.success) setActiveProxy(aRes.data);
@@ -46,7 +46,7 @@ export function ProxyManagement() {
     }
     setLoading(true);
     try {
-      const r = await window.api.saveProxy(
+      const r = await window.api.proxies.save(
         proxyType,
         host,
         port,
@@ -73,7 +73,7 @@ export function ProxyManagement() {
   const handleSetActive = async (id) => {
     setLoading(true);
     try {
-      const r = await window.api.setActiveProxy(id);
+      const r = await window.api.proxies.setActive(id);
       if (r.success) {
         await loadProxies();
         showToast("Proxy diaktifkan", "success");
@@ -93,7 +93,7 @@ export function ProxyManagement() {
   const handleDelete = async (id) => {
     setLoading(true);
     try {
-      const r = await window.api.deleteProxy(id);
+      const r = await window.api.proxies.delete(id);
       if (r.success) {
         await loadProxies();
         showToast("Proxy dihapus", "success");

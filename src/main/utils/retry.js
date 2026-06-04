@@ -4,6 +4,19 @@
  */
 
 /**
+ * Error yang menandakan browser/context sudah ditutup — tidak perlu di-retry.
+ */
+function isBrowserClosedError(error) {
+  const msg = error?.message || ''
+  return (
+    msg.includes('Target page, context or browser has been closed') ||
+    msg.includes('Target closed') ||
+    msg.includes('Session closed') ||
+    msg.includes('Browser has been closed')
+  )
+}
+
+/**
  * Retry a function with exponential backoff and jitter
  * @param {Function} fn - Async function to retry
  * @param {Object} options - Retry configuration
@@ -34,6 +47,11 @@ export async function retryWithBackoff(fn, options = {}) {
       return await fn();
     } catch (error) {
       lastError = error;
+
+      // Browser sudah ditutup — tidak ada gunanya retry, lempar langsung
+      if (isBrowserClosedError(error)) {
+        throw error;
+      }
 
       // Check if this error should be retried
       if (!shouldRetry(error) || attempt === maxRetries) {
@@ -108,16 +126,21 @@ export const RetryConfig = {
  * Helper to check if error is retryable
  */
 export function isRetryableError(error) {
+  // Browser sudah mati — tidak retryable
+  if (isBrowserClosedError(error)) return false;
+
   // Network errors
   if (error.name === 'TimeoutError') return true;
   if (error.name === 'NetworkError') return true;
-  
+
   // Playwright specific errors
   if (error.message?.includes('net::ERR_')) return true;
   if (error.message?.includes('Timeout')) return true;
   if (error.message?.includes('Target closed')) return false;
   if (error.message?.includes('Session closed')) return false;
-  
+
   // Default to retry
   return true;
 }
+
+export { isBrowserClosedError }

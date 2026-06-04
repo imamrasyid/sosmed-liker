@@ -23,8 +23,8 @@ export function CommentTemplates() {
     setLoading(true);
     try {
       const [tRes, aRes] = await Promise.all([
-        window.api.getCommentTemplates(platform),
-        window.api.getActiveCommentTemplate(platform),
+        window.api.templates.getAll(platform),
+        window.api.templates.getActive(platform),
       ]);
       if (tRes.success) setTemplates(tRes.data ?? []);
       if (aRes.success) setActiveTemplate(aRes.data);
@@ -45,7 +45,7 @@ export function CommentTemplates() {
     }
     setLoading(true);
     try {
-      const r = await window.api.saveCommentTemplate(
+      const r = await window.api.templates.save(
         platform,
         templateName,
         commentText,
@@ -68,7 +68,7 @@ export function CommentTemplates() {
   const handleSetActive = async (id) => {
     setLoading(true);
     try {
-      const r = await window.api.setActiveCommentTemplate(id);
+      const r = await window.api.templates.setActive(id);
       if (r.success) {
         await loadTemplates();
         showToast("Template diaktifkan", "success");
@@ -88,7 +88,7 @@ export function CommentTemplates() {
   const handleDelete = async (id) => {
     setLoading(true);
     try {
-      const r = await window.api.deleteCommentTemplate(id);
+      const r = await window.api.templates.delete(id);
       if (r.success) {
         await loadTemplates();
         showToast("Template dihapus", "success");
