@@ -7,3 +7,6 @@ cookie/
 .vscode/
 .idea/
 sample-html/
+
+# Electron binary — download manual, jangan di-commit (ukuran >100MB)
+vendors/
